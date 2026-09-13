@@ -8,7 +8,7 @@
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?attr/colorSurface"
+        android:background="?attr/colorSurfaceContainer"
         android:fitsSystemWindows="true"
         app:liftOnScroll="false">
 
@@ -27,8 +27,8 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:clipToPadding="false"
-        android:divider="@null"
-        android:dividerHeight="0dp"
+        android:divider="@drawable/divider_inset"
+        android:dividerHeight="1dp"
         android:paddingTop="0dp"
         android:paddingBottom="12dp"
         android:scrollbars="none"
