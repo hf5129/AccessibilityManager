@@ -1,4 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    页面底 / 顶栏 / 列表底 = ?attr/colorSurface（浅 #FEF7FF / 深 #141218）
+      —— 即 material 1.14 的**库默认**，不做任何覆写：
+         · 窗口底：1.14 里 android:colorBackground = m3_sys_color_*_background = neutral98 / neutral6，
+           与 ?attr/colorSurface 同值（background 角色已并入 surface）。
+         · 顶栏：库 macro m3_comp_app_bar_container_color = ?attr/colorSurface
+           （滚动后 m3_comp_app_bar_on_scroll_container_color = ?attr/colorSurfaceContainer；
+            本页 liftOnScroll=false，不切）。
+         · 列表底：ListView 自己不给底色时透出窗口底，也是 surface。
+
+    列表行（item.xml 的 segmented ListItemCardView）= ?attr/colorSurfaceContainer
+    （浅 #F3EDF7 / 深 #211F26）—— 2026-10-08 按用户要求直接取容器色档。
+
+    为什么行卡片不是库默认：1.14 的列表项容器 macro 是
+      m3_comp_list_list_item_container_color        = ?attr/colorSurface
+      m3_comp_list_list_item_segmented_container_color = ?attr/colorSurface
+    —— 与页面底**同色**（官方列表靠分隔线区分，不靠底色）。本项目用的是
+    ListItemCardView（MaterialCardView 子类：cardElevation 0dp、无描边），
+    形态上就是一张「实心卡片（filled card）」，所以按 1.14 官方的**卡片** token 取色：
+      m3_comp_filled_card_container_color   = ?attr/colorSurfaceContainerHighest
+      m3_comp_elevated_card_container_color = ?attr/colorSurfaceContainerLow（带阴影的卡片）
+      m3_comp_outlined_card_container_color = ?attr/colorSurface（描边卡片，与底同色）
+    上面三个只是卡片 token 备查；当前实际取的是容器色档 ?attr/colorSurfaceContainer
+    （2026-10-08 按用户要求，比 ContainerLow 低一档、比 surface 高一档）。
+    层级方向仍是"容器叠在 surface 上往上一档"：
+    浅色下卡片比底暗（#F3EDF7 vs #FEF7FF）、深色下比底亮（#211F26 vs #141218）。
+    弹窗内那四行卡片用同一个值（弹窗底是 colorSurfaceContainerHigh，卡片正好升一档）。-->
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
@@ -8,7 +35,7 @@
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?attr/colorSurfaceContainer"
+        android:background="?attr/colorSurface"
         android:fitsSystemWindows="true"
         app:liftOnScroll="false">
 
@@ -26,11 +53,12 @@
         android:id="@+id/list"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="?attr/colorSurface"
         android:clipToPadding="false"
-        android:divider="@drawable/divider_inset"
-        android:dividerHeight="1dp"
+        android:divider="@null"
+        android:dividerHeight="0dp"
         android:paddingTop="0dp"
-        android:paddingBottom="12dp"
+        android:paddingBottom="16dp"
         android:scrollbars="none"
         app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 

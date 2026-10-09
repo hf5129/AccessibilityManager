@@ -1,89 +1,146 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+    M3 Expressive「分段列表（segmented list）」列表项 —— 官方组件实现（material 1.14.0）。
+
+    结构照官方 Lists 文档（docs/components/List.md）：
+      ListItemLayout      承载 android.R.attr.state_first / state_middle / state_last / state_single，
+                          由 MainActivity.ServiceAdapter 调用
+                          ListItemLayout.updateAppearance(position, itemCount) 驱动；
+        └ ListItemCardView 官方 segmented 外壳（Widget.Material3.ListItemCardView.Segmented），自动带：
+                            容器色 = 显式覆盖为 ?attr/colorSurfaceContainer ——
+                            因为 1.14 的列表项容器 macro 与页面底**同色**，需要按官方标准另推一个：
+                              m3_comp_list_list_item_container_color           = ?attr/colorSurface
+                              m3_comp_list_list_item_segmented_container_color = ?attr/colorSurface
+                              → 官方列表靠分隔线区分行，不靠底色；本项目要"卡片"观感，
+                                而 ListItemCardView 就是 MaterialCardView 子类，于是按 1.14 官方的
+                                卡片 token 取（三个档位都是官方现成的）：
+                                  m3_comp_filled_card_container_color   = ?attr/colorSurfaceContainerHighest
+                                  m3_comp_elevated_card_container_color = ?attr/colorSurfaceContainerLow
+                                  m3_comp_outlined_card_container_color = ?attr/colorSurface
+                                2026-10-08 按用户要求直接取容器色档 ?attr/colorSurfaceContainer
+                                （比 surface 高一档、比 ContainerLow 低一档；此前用的是 ContainerLow，
+                                 更早试过 ContainerHighest）。
+                            层级方向仍是"容器叠在 surface 上往上一档"：
+                              浅 卡片 #F3EDF7 比底 #FEF7FF 暗、深 卡片 #211F26 比底 #141218 亮。
+                            形状 @xml/m3_list_item_shape_state_list（按位置状态切圆角 16/4dp）、
+                            水波纹 m3_list_item_ripple_color_selector、
+                            contentPadding 16dp / 10dp、cardElevation 0dp
+           └ LinearLayout   内容：leading 图标 + 文字区 + trailing（锁按钮 / 开关）
+
+    间距：卡片左右各 16dp、上下各 1dp margin，即相邻两项之间留 2dp、卡片距屏幕两侧各 16dp。
+    外沿那 1dp（第一项上面 / 最后一项下面）不要 —— 由 MainActivity.ServiceAdapter 在绑定时
+    调 applySegmentedEdgeMargins() 按位置置 0，否则列表顶部（顶栏下沿）与列表底部会各多出 1dp。
+    卡片内边距上下各 16dp（图标上方 / 下方各 16dp 留白，对齐 RootlessStore 设置页的项高观感）；
+    图标与文字区之间 16dp（compose M3 ListItem 的 leading 槽与文字间距）；headline 与 supporting 两行之间 2dp。
+
+    文字用官方列表项文字样式（含各自的颜色 state list）：
+      Label text      = Widget.Material3.TextView.ListItem.LabelText      (BodyLarge  / onSurface)
+      Supporting text = Widget.Material3.TextView.ListItem.SupportingText (BodyMedium / onSurfaceVariant)
+
+    子视图设 android:duplicateParentState，让 pressed/checked 等状态从 ListItemLayout 逐级下发
+    （官方文档：靠 ListItemCardView 的 duplicateParentState 继承位置状态并向下传递）。
+-->
+<com.google.android.material.listitem.ListItemLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/card_view"
+    android:id="@+id/list_item_layout"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:background="?attr/selectableItemBackground"
-    android:clickable="true"
-    android:focusable="true"
-    android:gravity="center_vertical"
-    android:orientation="horizontal"
-    android:paddingStart="16dp"
-    android:paddingTop="16dp"
-    android:paddingEnd="16dp"
-    android:paddingBottom="16dp">
+    android:layout_height="wrap_content">
 
-    <ImageView
-        android:id="@+id/service_icon"
-        android:contentDescription="@null"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_gravity="center_vertical"
-        android:layout_marginEnd="16dp" />
-
-    <LinearLayout
-        android:layout_width="0dp"
+    <com.google.android.material.listitem.ListItemCardView
+        android:id="@+id/card_view"
+        style="@style/Widget.Material3.ListItemCardView.Segmented"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="center_vertical"
-        android:layout_weight="1"
-        android:gravity="center_vertical"
-        android:orientation="vertical">
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="1dp"
+        android:layout_marginBottom="1dp"
+        android:clickable="true"
+        android:focusable="true"
+        app:cardBackgroundColor="?attr/colorSurfaceContainer"
+        app:contentPaddingTop="16dp"
+        app:contentPaddingBottom="16dp"
+        app:swipeEnabled="false">
 
-        <TextView
-            android:id="@+id/service_name"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="?attr/colorOnSurface"
-            android:textSize="16sp"
-            android:textStyle="bold" />
+            android:duplicateParentState="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/service_desc"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:textSize="14sp" />
-    </LinearLayout>
+            <ImageView
+                android:id="@+id/service_icon"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="center_vertical"
+                android:layout_marginEnd="16dp"
+                android:contentDescription="@null"
+                android:duplicateParentState="true" />
 
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_vertical"
-        android:layout_marginStart="0dp"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:layout_weight="1"
+                android:duplicateParentState="true"
+                android:gravity="center_vertical"
+                android:orientation="vertical">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/lock_button"
-            style="@style/Widget.Material3.Button.IconButton.Filled"
-            android:contentDescription="@string/lock_button_desc_unlocked"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp"
-            android:insetLeft="8dp"
-            android:insetRight="8dp"
-            android:insetTop="8dp"
-            android:insetBottom="8dp"
-            android:padding="6dp"
-            android:visibility="invisible"
-            app:icon="@drawable/ic_lock"
-            app:iconGravity="textStart"
-            app:iconSize="20dp"
-            app:iconTint="?attr/colorOnPrimary" />
+                <TextView
+                    android:id="@+id/service_name"
+                    style="@style/Widget.Material3.TextView.ListItem.LabelText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:duplicateParentState="true"
+                    android:ellipsize="end"
+                    android:maxLines="1" />
 
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/service_switch"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:minHeight="48dp"
-            android:minWidth="48dp"
-            android:padding="0dp" />
-    </LinearLayout>
-</LinearLayout>
+                <TextView
+                    android:id="@+id/service_desc"
+                    style="@style/Widget.Material3.TextView.ListItem.SupportingText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:duplicateParentState="true"
+                    android:ellipsize="end"
+                    android:maxLines="1" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_vertical"
+                android:duplicateParentState="true"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <!--
+                    锁定按钮 = 官方 M3 Expressive 图标按钮（style 见 values-v26/styles.xml
+                    的 Widget.App.LockIconButton）。尺寸不再手写，全部由官方 SizeOverlay
+                    Xsmall 档提供：48dp 触摸目标（inset 8dp）内 32dp 圆形、图标 20dp、
+                    内边距 6dp；按下时容器形状由库的 m3expressive_button_shape_state_list
+                    从全圆变形为圆角方形。
+                -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/lock_button"
+                    style="@style/Widget.App.LockIconButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:layout_marginEnd="8dp"
+                    android:contentDescription="@string/lock_button_desc_unlocked"
+                    android:visibility="invisible"
+                    app:icon="@drawable/ic_lock" />
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/service_switch"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minHeight="48dp"
+                    android:minWidth="48dp"
+                    android:padding="0dp" />
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.listitem.ListItemCardView>
+</com.google.android.material.listitem.ListItemLayout>

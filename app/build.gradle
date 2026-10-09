@@ -30,6 +30,16 @@ android {
             signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        // 2026-10-08 新增，用于排查「弹窗按钮首次按下卡一下」是不是 ART 纯 JIT 造成的：
+        // 与 release 完全一致（不混淆、不 shrink、debuggable=false），只是改用 debug 签名，
+        // 这样可以和现有 debug 包互相覆盖安装（同一个 keystore，不会签名冲突）。
+        // 与 debug 包的唯一实质差别：debuggable=false ⇒ 安装时 dex2oat 会做 AOT/quickening，
+        // 而不是像 debug 那样只校验、所有代码靠运行时 JIT。
+        // 用法：gradlew :app:assembleReleaseTest  →  app/build/outputs/apk/releaseTest/
+        releaseTest {
+            initWith release
+            signingConfig signingConfigs.debug
+        }
     }
 
     buildFeatures {
@@ -53,7 +63,15 @@ dependencies {
     implementation "dev.rikka.shizuku:api:13.1.0"
     implementation "dev.rikka.shizuku:provider:13.1.0"
     // 为了支持 minSdk 18，必须将 material >= 1.9.0
-    implementation 'com.google.android.material:material:1.11.0'
+    // 升级到 1.14.0：使用官方 M3 Expressive Lists 组件（ListItemCardView / ListItemLayout / segmented 样式）
+    implementation 'com.google.android.material:material:1.14.0'
+    // （原来这里有一条显式依赖 androidx.dynamicanimation:dynamicanimation:1.1.0，
+    //   是给锁按钮那版手写弹簧动画用的；弹簧代码已于 2026-10-02 整段移除，
+    //   而 material 1.14.0 的 POM 本身就传递依赖同一个 1.1.0，故这条删除不影响解析结果与包内容。
+    //   需要恢复弹簧版时再加回来，存档见 memory/2026-10-02/lock-anim/。）
+    // 显式覆盖 material 1.14.0 传递进来的 appcompat 1.7.0 / annotation 1.8.1
+    implementation 'androidx.appcompat:appcompat:1.8.0'
+    implementation 'androidx.annotation:annotation:1.10.0'
 
     testImplementation 'junit:junit:4.13.2'
 }

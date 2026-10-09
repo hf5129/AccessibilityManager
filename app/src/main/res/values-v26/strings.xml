@@ -3,15 +3,24 @@
     <string name="app_name">无障碍管理器</string>
     <string name="keep_alive_service_label">无障碍保活组件</string>
 
-    <string name="menu_auto_start_guard">开机后自动启动守护</string>
-    <string name="menu_show_guard_toast">显示保活提示</string>
-    <string name="menu_hide_from_recents">从最近任务中隐藏</string>
-    <string name="menu_show_system_apps">显示系统应用</string>
+    <!-- 工具栏「更多」按钮 + 设置弹窗标题 -->
+    <string name="settings_title">设置</string>
+    <!-- 设置弹窗里的五项（原来是溢出菜单的四个勾选项，名字里的 menu_ 前缀随之改掉） -->
+    <string name="setting_auto_start_guard">开机自动启动守护</string>
+    <string name="setting_show_guard_toast">显示保活提示</string>
+    <string name="setting_hide_from_recents">从最近任务中隐藏</string>
+    <string name="setting_show_system_apps">显示系统应用</string>
+    <!-- 动态取色（Monet / Material You）：Android 12+ 按壁纸生成整套配色；低于 12 自动回落静态基准色 -->
+    <string name="setting_dynamic_color">跟随壁纸取色</string>
 
     <string name="service_description_fallback">该服务未提供说明</string>
     <string name="lock_button_desc_locked">已加入保活名单</string>
     <string name="lock_button_desc_unlocked">未加入保活名单</string>
     <string name="dialog_close">知道了</string>
+
+    <!-- 设置弹窗的按钮：确认保存、取消丢弃 -->
+    <string name="dialog_confirm">确认</string>
+    <string name="dialog_cancel">取消</string>
 
     <string name="notification_permission_denied">未授予通知权限，保活服务可能无法在前台显示</string>
 

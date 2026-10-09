@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    自适应图标包装层 —— 动态取色版（系统强调色）。桌面别名 .LauncherDynamic 用它。
+
+    结构：
+        mipmap/ic_launcher.xml              默认（静态紫）→ ic_launcher_background / ic_launcher_foreground
+        mipmap-v31/ic_launcher_dynamic.xml  动态（强调色）→ ic_launcher_background_dynamic / ic_launcher_foreground_dynamic
+
+    动态这一套整体待在 mipmap-v31/ 里：它引用的 system_accent1_* 是 API 31 才有的框架色，
+    放这个目录既说明"只在 API 31+ 存在"，低版本也根本取不到这些资源。
+
+    安装后的默认入口是默认档（清单里 .LauncherClassic enabled=true、.LauncherDynamic enabled=false）；
+    进应用后由 MainActivity.syncLauncherIcon() 按设置项「跟随壁纸取色」决定启用哪一个 ——
+    没有额外的版本判断，开关是唯一依据。
+
+    monochrome（主题化图标）层只取形状、颜色由启动器给，用哪套前景都一样。
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background
+        android:drawable="@mipmap/ic_launcher_background_dynamic" />
+    <foreground
+        android:drawable="@mipmap/ic_launcher_foreground_dynamic" />
+    <monochrome
+        android:drawable="@mipmap/ic_launcher_foreground_dynamic" />
+</adaptive-icon>

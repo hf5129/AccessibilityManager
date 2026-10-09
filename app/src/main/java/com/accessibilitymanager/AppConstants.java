@@ -36,4 +36,12 @@ public class AppConstants {
      * 是否显示系统应用 Key
      */
     public static final String KEY_SHOW_SYSTEM_APPS = "show_system_apps";
+
+    /**
+     * 是否跟随壁纸取色（动态取色 / Monet / Material You）Key
+     * <p>
+     * 默认 true：Android 12+ 上开启，未开启或系统不支持时自动回落成静态基准色（浅 #FEF7FF / 深 #141218）。
+     * 由 DynamicColors（Application 子类）在每次 Activity 建主题前读取，改动后需重建 Activity 才生效。
+     */
+    public static final String KEY_DYNAMIC_COLOR = "dynamic_color";
 }

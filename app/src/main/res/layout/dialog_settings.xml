@@ -1,0 +1,342 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    「设置」弹窗的内容视图（由 MainActivity.showSettingsDialog() 通过 setView() 挂进
+    MaterialAlertDialog 的 customPanel）。
+
+    为什么不用 dialog 自带的按钮、而是把按钮也画在这里？
+      dialog 的按钮样式由 res/layout/m3_alert_dialog_actions.xml（弹窗按钮区的全局覆写版）决定
+      （那个文件把三个按钮都设成了 Filled 实底样式）。本弹窗要的是
+      「确认 = Filled、取消 = Standard（文字按钮）」，又不能顺手改掉别的弹窗
+      （权限弹窗的 Root / Shizuku 也走同一个布局），所以按钮自己排在内容里，
+      样式直接引用：确认 @style/Widget.App.Button.FilledDialog、
+      取消 @style/Widget.App.Button.TextDialog（M3 Expressive 文字按钮，
+      按下同样有形变；几何与官方 dialog 文字按钮逐值一致）。
+      两者几何一致：minWidth 64dp、8dp 间距、左右 12dp 内边距、4dp 上下 inset，
+      所以和别的弹窗按钮对得上；按钮区的内外边距也照抄 m3_alert_dialog_actions.xml
+      （左右 ?attr/dialogPreferredPadding、上下 20dp）。
+      由于本弹窗没有调用 setPositiveButton/setNegativeButton，库的 buttonPanel 是 GONE，
+      不会多出一段空白。
+
+    间距取值（都有出处）：
+      · 内容两侧 24dp：与弹窗标题对齐（标题用的是 ?attr/dialogPreferredPadding = 24dp）。
+      · 标题与内容之间 16dp：官方 @dimen/m3_alert_dialog_title_bottom_margin。
+        注意 appcompat 只在「有 message 或有列表」时才把标题下方那个 16dp 的
+        titleDividerNoCustom 占位打开（见 AlertController.setupView() 的字节码分支），
+        本弹窗是 setView() 的自定义内容，那个占位不生效，所以要自己补这 16dp。
+
+    五项设置项的样式 = 主列表（layout/item.xml）那一套 M3 Expressive 分段卡片：
+      同一批资源、同一套文字样式（LabelText / BodyLarge / onSurface），
+      尾部控件按需求改成 M3 勾选框（com.google.android.material.checkbox.MaterialCheckBox），
+      不再是开关。
+      圆角由 ListItemLayout.updateAppearance(position, count) 按首/中/尾下发（在代码里调用），
+      卡片之间 1dp margin，连成一段；首行上沿、末行下沿那 1dp 直接在 XML 里省掉
+      （第一行不写 layout_marginTop、最后一行不写 layout_marginBottom —— 五行是各自独立的静态块，
+       用不着像主列表那样在代码里按位置收敛）：这样标题下方正好 16dp
+      （@dimen/m3_alert_dialog_title_bottom_margin），末行与按钮区之间正好 20dp
+      （m3_alert_dialog_actions 的上边距）；卡片容器色用 ?attr/colorSurfaceContainerHighest
+      —— 弹窗底色是库默认的 ?attr/colorSurfaceContainerHigh（MaterialAlertDialog.Material3 的
+      backgroundTint = macro m3_comp_dialog_container_color），卡片比它高一档才是 M3 的
+      嵌套方向：浅色下卡片更暗、深色下卡片更亮，和列表页（底 colorSurface → 卡片
+      colorSurfaceContainer，卡片"抬起来"）读起来是同一个方向。
+      （早先用的是 ?attr/colorSurfaceContainer，比弹窗底低一档，两种模式下都像凹进去，已改。）
+    差别（都是列表项内容差异导致的）：没有 48dp 应用图标、只有一行文字（不带 supporting 行）。
+
+    卡片内的排版：ListItemCardView 本身是 FrameLayout，文字与勾选框直接作它的两个子 View，
+    中间不再套一层 LinearLayout ——
+      · 文字：layout_width=match_parent + layout_marginEnd=24dp（24dp = 勾选框的宽度）。
+        FrameLayout 里 match_parent 的子 View 会把 margin 从可用宽度里扣掉，所以文字的边界
+        正好停在勾选框左边，两个 View 的框不会再互相压住（这是之前用 paddingEnd 时的问题：
+        padding 只是让文字内容不起画，View 自身仍然横跨整行、盖在勾选框上）。
+      · 勾选框：显式 24dp × 24dp，layout_gravity=end|center_vertical。
+        必须同时把 minWidth / minHeight 写成 0dp：库样式
+        Widget.Material3.CompoundButton.CheckBox 自带 minWidth/minHeight =
+        ?attr/minTouchTargetSize（48dp），不覆盖的话测出来的尺寸会被抬回 48dp，
+        显式写 24dp 也没用（View 的实测尺寸取 max(建议最小值, 测量规格)）。
+        注意勾选框的矢量（drawable/mtrl_checkbox_button → mtrl_ic_checkbox_*）本身是
+        32dp 画布、里面 18dp 的方框居中，容器只有 24dp 时矢量按 View 边界被裁掉两侧各 4dp，
+        所以视觉上方框还是 18dp（离容器边 3dp），只是外围留白变小、点击区变成 24dp。
+      · 卡片内边距：左右保持库给的 16dp（contentPaddingLeft/Right =
+        @dimen/m3_comp_list_list_item_leading_space / trailing_space），没去动它；
+        上下用 16dp，于是行高 = 16 + 24 + 16 = 56dp（24dp 既是勾选框的高度、
+        也是文字 BodyLarge 的行高，两者取大值仍是 24dp）。
+        注：因为行高由这两条 padding 撑出来，系统字体放大时文字行高会超过 24dp，
+        行高会随之变高（不是死钉在 56dp）。
+    点整行＝勾选/取消这一行（在代码里给卡片挂 OnClickListener）。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:id="@+id/settings_rows"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:paddingTop="@dimen/m3_alert_dialog_title_bottom_margin">
+
+        <!-- 动态取色（Monet / Material You）：改这项后 MainActivity 会重建界面才看得到效果 -->
+        <com.google.android.material.listitem.ListItemLayout
+            android:id="@+id/setting_item_dynamic_color"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <com.google.android.material.listitem.ListItemCardView
+                android:id="@+id/card_view"
+                style="@style/Widget.Material3.ListItemCardView.Segmented"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="1dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardBackgroundColor="?attr/colorSurfaceContainerHighest"
+                app:contentPaddingTop="16dp"
+                app:contentPaddingBottom="16dp"
+                app:swipeEnabled="false">
+
+                <TextView
+                    android:id="@+id/setting_label"
+                    style="@style/Widget.Material3.TextView.ListItem.LabelText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start|center_vertical"
+                    android:layout_marginEnd="24dp"
+                    android:duplicateParentState="true"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/setting_dynamic_color" />
+
+                <com.google.android.material.checkbox.MaterialCheckBox
+                    android:id="@+id/setting_checkbox_dynamic_color"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="end|center_vertical"
+                    android:gravity="center"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:padding="0dp" />
+            </com.google.android.material.listitem.ListItemCardView>
+        </com.google.android.material.listitem.ListItemLayout>
+
+        <com.google.android.material.listitem.ListItemLayout
+            android:id="@+id/setting_item_auto_boot"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <com.google.android.material.listitem.ListItemCardView
+                android:id="@+id/card_view"
+                style="@style/Widget.Material3.ListItemCardView.Segmented"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:layout_marginBottom="1dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardBackgroundColor="?attr/colorSurfaceContainerHighest"
+                app:contentPaddingTop="16dp"
+                app:contentPaddingBottom="16dp"
+                app:swipeEnabled="false">
+
+                <TextView
+                    android:id="@+id/setting_label"
+                    style="@style/Widget.Material3.TextView.ListItem.LabelText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start|center_vertical"
+                    android:layout_marginEnd="24dp"
+                    android:duplicateParentState="true"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/setting_auto_start_guard" />
+
+                <com.google.android.material.checkbox.MaterialCheckBox
+                    android:id="@+id/setting_checkbox_auto_boot"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="end|center_vertical"
+                    android:gravity="center"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:padding="0dp" />
+            </com.google.android.material.listitem.ListItemCardView>
+        </com.google.android.material.listitem.ListItemLayout>
+
+        <com.google.android.material.listitem.ListItemLayout
+            android:id="@+id/setting_item_show_toast"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <com.google.android.material.listitem.ListItemCardView
+                android:id="@+id/card_view"
+                style="@style/Widget.Material3.ListItemCardView.Segmented"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:layout_marginBottom="1dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardBackgroundColor="?attr/colorSurfaceContainerHighest"
+                app:contentPaddingTop="16dp"
+                app:contentPaddingBottom="16dp"
+                app:swipeEnabled="false">
+
+                <TextView
+                    android:id="@+id/setting_label"
+                    style="@style/Widget.Material3.TextView.ListItem.LabelText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start|center_vertical"
+                    android:layout_marginEnd="24dp"
+                    android:duplicateParentState="true"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/setting_show_guard_toast" />
+
+                <com.google.android.material.checkbox.MaterialCheckBox
+                    android:id="@+id/setting_checkbox_show_toast"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="end|center_vertical"
+                    android:gravity="center"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:padding="0dp" />
+            </com.google.android.material.listitem.ListItemCardView>
+        </com.google.android.material.listitem.ListItemLayout>
+
+        <com.google.android.material.listitem.ListItemLayout
+            android:id="@+id/setting_item_hide_recents"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <com.google.android.material.listitem.ListItemCardView
+                android:id="@+id/card_view"
+                style="@style/Widget.Material3.ListItemCardView.Segmented"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:layout_marginBottom="1dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardBackgroundColor="?attr/colorSurfaceContainerHighest"
+                app:contentPaddingTop="16dp"
+                app:contentPaddingBottom="16dp"
+                app:swipeEnabled="false">
+
+                <TextView
+                    android:id="@+id/setting_label"
+                    style="@style/Widget.Material3.TextView.ListItem.LabelText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start|center_vertical"
+                    android:layout_marginEnd="24dp"
+                    android:duplicateParentState="true"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/setting_hide_from_recents" />
+
+                <com.google.android.material.checkbox.MaterialCheckBox
+                    android:id="@+id/setting_checkbox_hide_recents"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="end|center_vertical"
+                    android:gravity="center"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:padding="0dp" />
+            </com.google.android.material.listitem.ListItemCardView>
+        </com.google.android.material.listitem.ListItemLayout>
+
+        <com.google.android.material.listitem.ListItemLayout
+            android:id="@+id/setting_item_show_system"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <com.google.android.material.listitem.ListItemCardView
+                android:id="@+id/card_view"
+                style="@style/Widget.Material3.ListItemCardView.Segmented"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardBackgroundColor="?attr/colorSurfaceContainerHighest"
+                app:contentPaddingTop="16dp"
+                app:contentPaddingBottom="16dp"
+                app:swipeEnabled="false">
+
+                <TextView
+                    android:id="@+id/setting_label"
+                    style="@style/Widget.Material3.TextView.ListItem.LabelText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="start|center_vertical"
+                    android:layout_marginEnd="24dp"
+                    android:duplicateParentState="true"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/setting_show_system_apps" />
+
+                <com.google.android.material.checkbox.MaterialCheckBox
+                    android:id="@+id/setting_checkbox_show_system"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="end|center_vertical"
+                    android:gravity="center"
+                    android:minWidth="0dp"
+                    android:minHeight="0dp"
+                    android:padding="0dp" />
+            </com.google.android.material.listitem.ListItemCardView>
+        </com.google.android.material.listitem.ListItemLayout>
+    </LinearLayout>
+
+    <!--
+        按钮区（2026-10-09 由 dialog_settings_actions.xml 合并进来：那份布局只被本弹窗使用，
+        没必要单独占一层 include）：右下角 [取消] [确认]，确认在最右。
+
+        与 m3_alert_dialog_actions.xml（弹窗按钮区的全局覆写版）逐值对齐：
+          · 左右内边距 ?attr/dialogPreferredPadding（24dp，与标题、内容两侧同一值）；
+          · 上下 20dp（那个覆写版把库里的 14dp 提到了 20dp：M3 规范里按钮容器下沿到弹窗边缘 24dp，
+            按钮自身上下各带 4dp inset，20 + 4 = 24）；
+          · layoutDirection="locale" + gravity="end"：LTR 下两个按钮靠右，RTL 自动镜像，
+            顺序仍是「取消在左、确认在右」——即 negative 在前、positive 压轴。
+
+        按钮样式：
+          · 取消 = @style/Widget.App.Button.TextDialog（Standard 文字按钮：容器透明、文字 colorPrimary。
+            父样式是 M3 Expressive 文字按钮，靠同一个 size overlay 拿到 containerShape*，
+            所以按下与「确认」一样有圆角收缩形变；minWidth 64dp、间距 8dp、12dp 水平内边距
+            与官方 Widget.Material3.Button.TextButton.Dialog 逐值一致，几何没变）；
+          · 确认 = @style/Widget.App.Button.FilledDialog（实底弹窗按钮：同样 minWidth 64dp、
+            marginStart 8dp，带按下形变），它保存设置。
+        两者内边距、inset、高度、间距由这两套 style 自身保证，无需在这里重复声明。
+    -->
+    <LinearLayout
+        android:id="@+id/settings_actions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layoutDirection="locale"
+        android:gravity="end"
+        android:orientation="horizontal"
+        android:paddingLeft="?attr/dialogPreferredPadding"
+        android:paddingTop="20dp"
+        android:paddingRight="?attr/dialogPreferredPadding"
+        android:paddingBottom="20dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/settings_cancel"
+            style="@style/Widget.App.Button.TextDialog"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/dialog_cancel" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/settings_confirm"
+            style="@style/Widget.App.Button.FilledDialog"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/dialog_confirm" />
+    </LinearLayout>
+</LinearLayout>

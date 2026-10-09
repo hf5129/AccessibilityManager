@@ -1,25 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    工具栏菜单：现在只有一个「设置」入口。
+
+    原来这里是四个 checkable 的溢出菜单项（开机自启 / 保活提示 / 隐藏最近任务 / 显示系统应用），
+    点三点弹出的 PopupMenu 逐个勾选、改一下写一次 SharedPreferences。
+    现在改成：三点图标 → 弹 dialog（布局见 layout/dialog_settings.xml），
+    四项以列表项样式排在里面，改动只在「确认」时一次性落盘 —— 所以这里不再有 checkable 项，
+    onPrepareOptionsMenu 同步勾选状态那套也就没必要了。
+
+    showAsAction="always"：按钮直接以图标形式常驻工具栏右侧
+    （不再是库自动生成的溢出按钮），图标见 drawable/ic_more_vert.xml
+    （与原来的三点溢出图标同款，位置、尺寸、颜色都不变）。
+    title 在这里的作用是无障碍朗读与图标放不下时兜底，不会显示成文字。
+-->
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
-        android:id="@+id/boot"
-        android:checkable="true"
-        app:showAsAction="never"
-        android:title="@string/menu_auto_start_guard" />
-    <item
-        android:id="@+id/toast"
-        android:checkable="true"
-        app:showAsAction="never"
-        android:title="@string/menu_show_guard_toast" />
-    <item
-        android:id="@+id/hide"
-        android:checkable="true"
-        app:showAsAction="never"
-        android:title="@string/menu_hide_from_recents" />
-    <item
-        android:id="@+id/show_system"
-        android:checkable="true"
-        app:showAsAction="never"
-        android:title="@string/menu_show_system_apps" />
+        android:id="@+id/action_settings"
+        android:icon="@drawable/ic_more_vert"
+        android:title="@string/settings_title"
+        app:showAsAction="always" />
 </menu>

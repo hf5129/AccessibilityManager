@@ -1,18 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Copyright 2021 The Android Open Source Project
+    ⚠️ 本文件是 material 库 m3expressive_alert_dialog.xml 的**同名覆写**（整份复制后只改一处）。
 
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
+    为什么是这一份：库里 alert dialog 骨架由主题属性 android:layout 决定，来源是 alertDialogStyle：
+        MaterialAlertDialog.Material3           → @layout/m3_alert_dialog
+        MaterialAlertDialog.Material3Expressive → @layout/m3expressive_alert_dialog   ← 本工程走这条
+    本工程主题 Theme.Material3Expressive.DayNight.NoActionBar 经
+    Base.Theme.Material3Expressive.Light/Dark 把 materialAlertDialogTheme 指到
+    ThemeOverlay.Material3Expressive.MaterialAlertDialog ⇒ alertDialogStyle = …Material3Expressive
+    ⇒ 实际加载的是本文件（2026-10-09 确认）。
 
-        http://www.apache.org/licenses/LICENSE-2.0
+    与库版的唯一差异：
+      · contentPanel（消息文本那块，id=contentPanel）去掉 android:minHeight="48dp"
+        —— 短消息不再被撑到 48dp，高度完全由内容决定。
+        customPanel（setView 自定义内容的容器，id=customPanel）的 minHeight 保持库值不动。
 
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
+    没改的地方（免得后来人以为漏了）：
+      · 根节点 parentPanel 上的 android:clipChildren="true" 保持原样：
+        ViewGroup 的 clipChildren 默认值就是 true，删掉这行等于没删（行为完全相同）；
+        真要允许子 View 越界绘制得显式写 false，那才算有意义的改动。
+      · textSpacerNoTitle / textSpacerNoButtons 的高度保持库里的
+        @dimen/m3expressive_alert_dialog_top_padding / _bottom_padding，不写死具体值。
+
+    同族文件现状：
+      · m3_alert_dialog_actions.xml —— 保持原样，继续生效（本文件与库版 m3_alert_dialog.xml 都 include 它）。
+      · m3_alert_dialog.xml          —— 已删除（app 侧不再覆写非 expressive 骨架；它在本工程主题下不被加载）。
+      · m3_alert_dialog_title.xml    —— 已删除（只被非 expressive 骨架 include，早就不生效）。
 -->
 <androidx.appcompat.widget.AlertDialogLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
@@ -21,9 +34,11 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:gravity="start|left|top"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:clipChildren="true"
+    android:filterTouchesWhenObscured="true">
 
-  <include layout="@layout/m3_alert_dialog_title"/>
+  <include layout="@layout/m3expressive_alert_dialog_title"/>
 
   <FrameLayout
       android:id="@+id/contentPanel"
@@ -53,7 +68,7 @@
         <android.widget.Space
             android:id="@+id/textSpacerNoTitle"
             android:layout_width="match_parent"
-            android:layout_height="24dp"
+            android:layout_height="@dimen/m3expressive_alert_dialog_top_padding"
             android:visibility="gone"/>
 
         <TextView
@@ -67,7 +82,7 @@
         <android.widget.Space
             android:id="@+id/textSpacerNoButtons"
             android:layout_width="match_parent"
-            android:layout_height="24dp"
+            android:layout_height="@dimen/m3expressive_alert_dialog_bottom_padding"
             android:visibility="gone"/>
       </LinearLayout>
     </androidx.core.widget.NestedScrollView>

@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="AppTheme" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- 在这里可以自定义你的主题颜色，如果需要的话 -->
+    <style name="AppTheme" parent="Theme.Material3Expressive.DayNight.NoActionBar">
+        <!-- 2026-10-02：由 Theme.Material3.DayNight.NoActionBar 换成 Expressive 版。
+             对颜色的影响（实测 AAR）：只有浅色模式下 4 个 on-container 角色变亮
+             （onPrimaryContainer #FF21005D→#FF4F378B 等，本质 tone10→tone30），深色模式零变化；
+             ?attr/colorSurface* 系列完全不受影响。
+             对动效的影响：6 个 motionSpring* 由 standard 变 expressive（空间弹簧会过冲）；
+             时长/缓动主题属性不变 —— 锁按钮 MaterialFade 仍是进场 400ms / 退场 150ms。
+             其余变化是一批组件默认样式改指 Widget.Material3Expressive.*，
+             本工程多数控件已在 values-v26/styles.xml 里显式指定，故冲击面较小。
+             注：2026-10-08 曾试过在这里覆写 6 条 motionSpring* 回 standard 做对比（B 版），
+             用户选择保持原样（即主题默认的 expressive 弹簧），覆写已撤回。 -->
     </style>
 </resources>

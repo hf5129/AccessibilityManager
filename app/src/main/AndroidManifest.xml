@@ -21,23 +21,63 @@
     <uses-sdk tools:overrideLibrary="rikka.shizuku.provider,rikka.shizuku.api,rikka.shizuku.shared,rikka.shizuku.aidl" />
 
     <application
+        android:name=".DynamicColors"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
-        <!-- 主界面 -->
+        <!--
+            主界面。
+            注意：LAUNCHER 入口不在这里，而是下面两个 activity-alias —— 桌面图标要跟着
+            「跟随壁纸取色」开关在两套图标之间切换，只有"别名"这类组件才能被单独启用/停用。
+        -->
         <activity
             android:name=".MainActivity"
             android:configChanges="keyboardHidden|smallestScreenSize|fontScale|screenSize"
             android:exported="true"
-            android:launchMode="singleTask">
+            android:launchMode="singleTask" />
+
+        <!--
+            桌面入口别名 ①：默认图标 @mipmap/ic_launcher（静态紫 #6750A4 / #EADDFF）。
+            默认启用 —— 安装后到应用第一次启动之前，桌面显示的就是它。
+
+            桌面入口别名 ②：动态图标 @mipmap/ic_launcher_dynamic（整套放在 mipmap-v31/，
+            只在 API 31+ 存在；引用 framework 色 system_accent1_600 / _100，跟系统强调色）。
+            默认停用 —— 让安装后第一眼先看到默认档的那副静态图标；
+            进应用后由 MainActivity.syncLauncherIcon() 按设置项「跟随壁纸取色」决定启用哪一个。
+
+            两者由 syncLauncherIcon() 同步，规则是"先启用目标、再停用另一个"，
+            保证任何时候恰好启用一个（不会出现一个都没有的空档）。
+            android:enabled 只决定安装后的初始状态；之后以组件启用状态为准
+            （该状态会被系统持久化，每次进应用都会重新同步一次）。
+        -->
+        <activity-alias
+            android:name=".LauncherClassic"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".LauncherDynamic"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_dynamic"
+            android:label="@string/app_name"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <!-- 核心守护服务 -->
         <service

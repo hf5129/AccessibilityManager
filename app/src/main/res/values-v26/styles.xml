@@ -19,24 +19,90 @@
 
     <!--
         M3 MaterialAlertDialog 按钮 filled 样式（配合同名覆盖布局 m3_alert_dialog_actions.xml）。
-        父样式=库自带实底 filled 按钮（primary 色 + elevation）；
         补充 dialog 按钮专属值：minWidth 64dp、singleLine、按钮间距 8dp
-        （neutral 用 Flush 无左间距，positive/negative 各带 8dp marginStart），
-        并把水平 padding 从实底链的 24dp 覆盖回文字按钮的 12dp（dialog 观感）。
+        （neutral 用 Flush 无左间距，positive/negative 各带 8dp marginStart）。
+
+        父样式取官方 M3 Expressive 实底按钮 Widget.Material3Expressive.Button。
+        它的 parent 就是原来的 Widget.Material3.Button，静止态外观一致，
+        但多出按下/长按变形（morph）：
+            shapeAppearance = @xml/m3expressive_button_shape_state_list
+                pressed → ?attr/containerShapePressed   （收缩成小圆角）
+                默认    → ?attr/containerShapeDefault   （全圆，与原形状同值，故静止态不变）
+        尺寸档位用自定义 size overlay 继承官方 Small 档，只把水平内边距保持项目的 12dp。
+
+        ★ 上一版失败的教训（勿重犯）：containerShape* 这三个 attr 在 material 1.14 里
+          【只】定义在 SizeOverlay.Material3Expressive.Button.* / .IconButton.* 中，
+          必须由 materialSizeOverlay 这层机制注入才会被解析。
+          把它们写成按钮样式里的普通 <item>、或改用 materialThemeOverlay 引一层主题，
+          都不会生效 —— ?attr/containerShape* 取到 0，shapeAppearance 变空，
+          按钮圆角全丢直接显示成方块，并且完全不参与按压状态切换。
     -->
-    <style name="Widget.App.Button.FilledDialog" parent="Widget.Material3.Button">
+    <style name="Widget.App.SizeOverlay.DialogButton" parent="SizeOverlay.Material3Expressive.Button.Small">
+        <item name="containerPaddingStart">@dimen/m3_btn_text_btn_padding_left</item>
+        <item name="containerPaddingEnd">@dimen/m3_btn_text_btn_padding_right</item>
+    </style>
+
+    <style name="Widget.App.Button.FilledDialog" parent="Widget.Material3Expressive.Button">
+        <item name="materialSizeOverlay">@style/Widget.App.SizeOverlay.DialogButton</item>
         <item name="android:minWidth">@dimen/m3_btn_dialog_btn_min_width</item>
         <item name="android:lines">1</item>
         <item name="android:ellipsize">end</item>
         <item name="android:singleLine">true</item>
         <item name="android:layout_marginStart">@dimen/m3_btn_dialog_btn_spacing</item>
         <item name="android:layout_marginLeft">@dimen/m3_btn_dialog_btn_spacing</item>
-        <item name="android:paddingLeft">@dimen/m3_btn_text_btn_padding_left</item>
-        <item name="android:paddingRight">@dimen/m3_btn_text_btn_padding_right</item>
     </style>
 
     <style name="Widget.App.Button.FilledDialog.Flush" parent="Widget.App.Button.FilledDialog">
         <item name="android:layout_marginStart">0dp</item>
         <item name="android:layout_marginLeft">0dp</item>
     </style>
+
+    <!--
+        弹窗里的 Standard（文字）按钮：与 FilledDialog 成对，几何逐值一致，只是实底换透明。
+
+        ★ 为什么原来那个「取消」按下没有圆角变小特效：
+          样式用的是官方标准的 Widget.Material3.Button.TextButton.Dialog —— 属于
+          非 Expressive 的 M3 按钮族，它从来没设过 shapeAppearance 状态列表，
+          所以按下只有普通水波纹，形状不动。形变的唯一来源是 Expressive 按钮族的
+          @xml/m3expressive_button_shape_state_list（pressed → ?attr/containerShapePressed），
+          而那三个 containerShape* attr 只由 SizeOverlay.Material3Expressive.Button.* 注入
+          —— 与上面 FilledDialog 的教训同一条，不是漏写 item 的问题。
+
+          所以这里换成 Expressive 文字按钮父样式 + 同一个自定义 Small 档 size overlay：
+          容器仍透明、文字仍 colorPrimary，minWidth 64dp / 8dp 间距 / 12dp 水平内边距
+          与官方 dialog 文字按钮逐值相同（几何不变），多了按下形变与状态层。
+    -->
+    <style name="Widget.App.Button.TextDialog" parent="Widget.Material3Expressive.Button.TextButton">
+        <item name="materialSizeOverlay">@style/Widget.App.SizeOverlay.DialogButton</item>
+        <item name="android:minWidth">@dimen/m3_btn_dialog_btn_min_width</item>
+        <item name="android:lines">1</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:singleLine">true</item>
+        <item name="android:layout_marginStart">@dimen/m3_btn_dialog_btn_spacing</item>
+        <item name="android:layout_marginLeft">@dimen/m3_btn_dialog_btn_spacing</item>
+    </style>
+
+    <!--
+        列表项里的「锁定」图标按钮：官方 M3 Expressive 图标按钮（material 1.14 起提供）。
+
+        父样式 = 库自带 Expressive filled 图标按钮：
+            容器 ?attr/colorPrimary、图标 ?attr/colorOnPrimary（含 disabled 弱化），
+            并按 @xml/m3expressive_button_shape_state_list 切换形状：
+                默认 ?attr/containerShapeDefault  → 全圆
+                按下 ?attr/containerShapePressed  → 圆角方形（按下变形特效）
+                选中 ?attr/containerShapeChecked  → 本项目按钮非 checkable，不参与
+
+        尺寸全部交给官方 SizeOverlay（Xsmall 档），与之前手写的数值逐值相同：
+            containerPadding* 6dp、containerInset* 8dp、containerIconSize 20dp、
+            containerShape* 见上 / minWidth·minHeight 48dp（48dp 触摸目标 + 32dp 圆形）。
+
+        说明：Expressive 的主题 attr 引用（containerShape*/containerInset* 等）由这里的
+        materialSizeOverlay 注入到控件自身，形状值来自主题链里的
+        Base.V14.Theme.Material3.Light（shapeAppearanceCornerSmall/Medium），
+        因此无需把 AppTheme 换成 Theme.Material3Expressive.* 。
+    -->
+    <style name="Widget.App.LockIconButton" parent="Widget.Material3Expressive.Button.IconButton.Filled">
+        <item name="materialSizeOverlay">@style/SizeOverlay.Material3Expressive.Button.IconButton.Xsmall</item>
+    </style>
+
 </resources>
