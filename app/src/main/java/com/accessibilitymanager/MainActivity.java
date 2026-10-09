@@ -586,7 +586,7 @@ public class MainActivity extends AppCompatActivity {
      * <p>
      * 桌面图标是 APK 里的静态资源，一个应用内复选框改不了它 —— 想让它跟着设置变，只能准备
      * 两套图标、各挂一个 activity-alias（见 AndroidManifest.xml 的 .LauncherDynamic /
-     * .LauncherClassic），再按设置启用其中一个。
+     * .Launcher），再按设置启用其中一个。
      * <p>
      * 顺序要命：先启用目标、再停用另一个。反过来的话中间会有"两个都停用"的空档，
      * 那一瞬间应用在桌面上是彻底消失的。
@@ -599,7 +599,7 @@ public class MainActivity extends AppCompatActivity {
     private void syncLauncherIcon() {
         boolean dynamicColor = sp.getBoolean(AppConstants.KEY_DYNAMIC_COLOR, true);
         setLauncherAliasEnabled(".LauncherDynamic", dynamicColor);
-        setLauncherAliasEnabled(".LauncherClassic", !dynamicColor);
+        setLauncherAliasEnabled(".Launcher", !dynamicColor);
     }
 
     /**

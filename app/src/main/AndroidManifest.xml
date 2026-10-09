@@ -54,7 +54,7 @@
             （该状态会被系统持久化，每次进应用都会重新同步一次）。
         -->
         <activity-alias
-            android:name=".LauncherClassic"
+            android:name=".Launcher"
             android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"

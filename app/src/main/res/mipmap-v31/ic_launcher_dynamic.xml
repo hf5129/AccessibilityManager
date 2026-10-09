@@ -9,7 +9,7 @@
     动态这一套整体待在 mipmap-v31/ 里：它引用的 system_accent1_* 是 API 31 才有的框架色，
     放这个目录既说明"只在 API 31+ 存在"，低版本也根本取不到这些资源。
 
-    安装后的默认入口是默认档（清单里 .LauncherClassic enabled=true、.LauncherDynamic enabled=false）；
+    安装后的默认入口是默认档（清单里 .Launcher enabled=true、.LauncherDynamic enabled=false）；
     进应用后由 MainActivity.syncLauncherIcon() 按设置项「跟随壁纸取色」决定启用哪一个 ——
     没有额外的版本判断，开关是唯一依据。
 
