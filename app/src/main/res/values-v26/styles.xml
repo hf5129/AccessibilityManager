@@ -105,4 +105,12 @@
         <item name="materialSizeOverlay">@style/SizeOverlay.Material3Expressive.Button.IconButton.Xsmall</item>
     </style>
 
+    <!--
+      列表卡片样式：只把官方 segmented 样式的 shapeAppearance 换掉（换成我们自己的形状状态列表），
+      其余一律继承。这样轻点不会让圆角换档（官方那份列表里有 state_pressed），
+      只有长按阈值到了才换 —— 详见 res/xml/app_list_item_shape_state_list.xml。
+    -->
+    <style name="Widget.App.ListItemCardView.Segmented" parent="Widget.Material3.ListItemCardView.Segmented">
+        <item name="shapeAppearance">@xml/app_list_item_shape_state_list</item>
+    </style>
 </resources>

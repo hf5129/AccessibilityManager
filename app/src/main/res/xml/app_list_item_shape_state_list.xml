@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  列表卡片的形状状态列表：照抄 material 官方的 m3_list_item_shape_state_list，只动一处 ——
+
+    · 删掉官方那条 <item android:state_pressed="true" .../>：
+      官方默认「一按下就换一档圆角」（还带 setCornerSpringForce 的弹簧动画），
+      所以轻点也会看到圆角变；
+    · 换成我们自己的状态 app:state_longPressMorph="true"：
+      只有「按住到长按阈值」时我们才把这个状态并进 drawable state，圆角这时才换。
+
+  依据：material 的解析器（StateListShapeAppearanceModel，源码 241-251 行）会把
+  「除 shapeAppearance / shapeAppearanceOverlay 以外的任何属性」都当作状态说明，
+  所以自定义状态是官方支持的写法（material 自己也在用 app:state_swiped 这类自定义状态）。
+
+  顺序有意义：按顺序取第一个匹配项，所以自定义状态那条必须排在位置状态
+  （single / first / last / middle）之前。
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item android:state_checkable="true" android:state_checked="true"
+        app:shapeAppearance="?attr/listItemShapeAppearanceChecked" />
+
+    <item app:state_longPressMorph="true"
+        app:shapeAppearance="?attr/listItemShapeAppearancePressed" />
+
+    <item android:state_focused="true"
+        app:shapeAppearance="?attr/listItemShapeAppearanceFocused" />
+
+    <item android:state_hovered="true"
+        app:shapeAppearance="?attr/listItemShapeAppearanceHovered" />
+
+    <item android:state_single="true"
+        app:shapeAppearance="?attr/listItemShapeAppearanceSingle" />
+
+    <item android:state_first="true"
+        app:shapeAppearance="?attr/listItemShapeAppearanceFirst" />
+
+    <item android:state_last="true"
+        app:shapeAppearance="?attr/listItemShapeAppearanceLast" />
+
+    <item android:state_middle="true"
+        app:shapeAppearance="?attr/listItemShapeAppearanceMiddle" />
+
+    <item app:shapeAppearance="?attr/listItemShapeAppearanceMiddle" />
+</selector>

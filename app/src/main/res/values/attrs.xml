@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  自定义 drawable state：只在「按住到长按阈值」时并进卡片的 drawable state。
+  用途见 res/xml/app_list_item_shape_state_list.xml —— 卡片形状状态列表用它取代官方的
+  android:state_pressed，从而做到「轻点圆角不动、长按才形变」。
+-->
+<resources>
+    <attr name="state_longPressMorph" format="boolean" />
+</resources>
