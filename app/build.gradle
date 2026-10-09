@@ -12,6 +12,15 @@ android {
         versionCode 103
         versionName "10.3"
 
+        // 别再试 multiDexKeepProguard（2026-10-09 实测无效，勿重犯）：
+        // 想把自己代码钉进主 dex，配了 multiDexKeepProguard file('main-dex-rules.pro')
+        // （-keep class com.accessibilitymanager.** { *; }），并加 multiDexEnabled true，
+        // 构建后反查 dex 布局**毫无变化** —— 原因：minSdk 26 用的是 native multidex，
+        // main dex list 那套机制只在 legacy multidex（minSdk < 21）才被 D8 采用。
+        // 实测结论：release 路径（releaseTest）本来就把本应用类放在 classes.dex；
+        // debug 路径把入口类排在 classes3.dex（debug 比 release 多约 2MB 类、共 4 个 dex），
+        // 而这个差异目前没有受支持的杠杆去调。真要根治得走 R8（方法数压到单 dex）。
+
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 

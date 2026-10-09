@@ -8,6 +8,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.animation.TimeInterpolator;
 import android.content.res.Configuration;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
@@ -25,12 +26,14 @@ import android.os.SystemClock;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Log;
+import android.util.LruCache;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
+import android.view.animation.PathInterpolator;
 import android.view.Window;
 import android.view.accessibility.AccessibilityManager;
 import android.widget.BaseAdapter;
@@ -53,6 +56,7 @@ import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.listitem.ListItemLayout;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.motion.MotionUtils;
 import com.google.android.material.transition.MaterialFade;
 
 import java.util.ArrayList;
@@ -61,6 +65,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import rikka.shizuku.Shizuku;
 
@@ -102,25 +108,58 @@ public class MainActivity extends AppCompatActivity {
     private Set<ComponentName> enabledServiceSnapshot = Collections.emptySet();
 
     /**
-     * 应用元数据缓存：服务名 / 图标 / 是否系统应用。
+     * 应用元数据缓存：应用名 / 是否系统应用。
      * <p>
-     * PackageManager.getApplicationInfo()、getApplicationIcon() 都是 IPC，而同一份数据在一次
-     * 刷新里会被反复取（过滤逐项取一遍、绑定又逐行取一遍）。缓存后每个包只查一次，
-     * 之后刷新只做内存查表。
+     * PackageManager.getApplicationInfo()、loadLabel() 都是 IPC，而同一份数据在一次刷新里会
+     * 被反复取（过滤逐项取一遍、绑定又逐行取一遍）。缓存后每个包只查一次，之后只做内存查表。
+     * <p>
+     * 图标不在其中：loadIcon() 是最贵的那一项，单独走 iconCache + loadServiceIcon() 懒加载，
+     * 只有真正绑到屏幕上的行才去取。
      */
     private final Map<String, AppMeta> appMetaCache = new HashMap<>();
 
-    /** 一个包的应用元数据；found = false 表示查不到这个包。 */
+    /**
+     * 图标缓存：键＝包名，值＝图标的 ConstantState。
+     * <p>
+     * 存 ConstantState 而不是 Drawable 实例：同一个包可能对应多个服务（多个条目），
+     * 而一个 Drawable 只有一份 callback/state，两个 ImageView 直接共用会互相踩。
+     * 每个 ImageView 各自 newDrawable() 一份副本，既省 IPC 又不串状态。
+     */
+    private final LruCache<String, Drawable.ConstantState> iconCache = new LruCache<>(64);
+
+    /**
+     * 图标加载线程池（守护线程，随进程退出）。
+     * <p>
+     * loadIcon() 是 PackageManager IPC，也是列表里唯一的重活：原先它跟着 getAppMeta()
+     * 在主线程上按服务数逐个取，全压在首帧之前。现在只给"真正可见的行"取，且都在这里做。
+     */
+    private final ExecutorService iconExecutor = Executors.newFixedThreadPool(2, r -> {
+        Thread t = new Thread(r, "service-icon");
+        t.setDaemon(true);
+        return t;
+    });
+
+    /** 图标淡入的兜底时长：m3_sys_motion_duration_short4 = 200ms（主题里取不到时才用）。 */
+    private static final int ICON_FADE_FALLBACK_MS = 200;
+
+    /** 兜底缓动：M3 emphasized decelerate 曲线 cubic-bezier(0.05, 0.7, 0.1, 1.0)。 */
+    private static final TimeInterpolator M3_EMPHASIZED_DECELERATE =
+            new PathInterpolator(0.05f, 0.7f, 0.1f, 1.0f);
+
+    /**
+     * 一个包的应用元数据；found = false 表示查不到这个包。
+     * <p>
+     * 这里**没有图标**：图标是这条链上最贵的 IPC，不能跟着元数据在主线程同步取，
+     * 由 loadServiceIcon() 按需加载。
+     */
     private static final class AppMeta {
         final boolean found;
         final CharSequence label;
-        final Drawable icon;
         final boolean isSystem;
 
-        AppMeta(boolean found, CharSequence label, Drawable icon, boolean isSystem) {
+        AppMeta(boolean found, CharSequence label, boolean isSystem) {
             this.found = found;
             this.label = label;
-            this.icon = icon;
             this.isSystem = isSystem;
         }
     }
@@ -254,13 +293,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 取应用元数据，带缓存。
+     * 取应用元数据（应用名 + 是否系统应用），带缓存。
      * <p>
      * 每个包只在首次遇到时查一次 PackageManager，之后都是查表。
+     * 刻意不取图标：那是列表里最贵的 IPC，见 loadServiceIcon()。
      */
     private AppMeta getAppMeta(String packageName) {
         if (TextUtils.isEmpty(packageName)) {
-            return new AppMeta(false, null, null, false);
+            return new AppMeta(false, null, false);
         }
         AppMeta cached = appMetaCache.get(packageName);
         if (cached != null) {
@@ -270,27 +310,84 @@ public class MainActivity extends AppCompatActivity {
         try {
             PackageManager pm = getPackageManager();
             ApplicationInfo ai = pm.getApplicationInfo(packageName, 0);
-            meta = new AppMeta(true, ai.loadLabel(pm), ai.loadIcon(pm),
+            meta = new AppMeta(true, ai.loadLabel(pm),
                     (ai.flags & ApplicationInfo.FLAG_SYSTEM) != 0);
         } catch (PackageManager.NameNotFoundException e) {
-            meta = new AppMeta(false, null, null, false);
+            meta = new AppMeta(false, null, false);
         }
         appMetaCache.put(packageName, meta);
         return meta;
     }
 
     /**
-     * 取出图标的一份副本再交给 ImageView。
+     * 懒加载一行的应用图标：先摆占位图，命中缓存立刻换真图标，否则丢到后台线程去取。
      * <p>
-     * 同一个包可能对应多个服务（多个条目的图标来自同一个 Drawable），而 Drawable 只有一个
-     * callback，直接共用同一实例会让两个 ImageView 互相踩。复制很便宜，够用。
+     * 这是启动速度那次优化的核心一步：图标是列表里唯一的重量级 IPC，而首帧只需要文字。
+     * ListView 只会绑定真正显示出来的行，所以这里天然只给可见行走一遍；滚动时按需补。
+     * <p>
+     * 复用防护：把"这一行现在要显示哪个包"记在 ImageView 的 tag 上，后台结果回来时对不上
+     * 就丢掉 —— 否则快速滚动时 convertView 被复用，图标会串行。
      */
-    private Drawable copyIcon(Drawable src) {
-        if (src == null) {
-            return null;
+    private void loadServiceIcon(ImageView iconView, String packageName) {
+        if (iconView == null) {
+            return;
         }
-        Drawable.ConstantState state = src.getConstantState();
-        return state != null ? state.newDrawable(getResources()) : src;
+        // 本行可能刚被复用：把上一行没跑完的淡入收掉并复位 alpha，免得残留半透明
+        iconView.animate().cancel();
+        iconView.setAlpha(1f);
+        // 先占位，再登记本行的归属（复用后 tag 会变，旧任务自然失配）
+        iconView.setTag(R.id.service_icon, packageName);
+        iconView.setImageResource(android.R.drawable.sym_def_app_icon);
+        if (TextUtils.isEmpty(packageName)) {
+            return;
+        }
+
+        Drawable.ConstantState cached = iconCache.get(packageName);
+        if (cached != null) {
+            // 命中缓存就直接换上、不淡入：滚动回来时不该再淡一次
+            iconView.setImageDrawable(cached.newDrawable(getResources()));
+            return;
+        }
+
+        iconExecutor.execute(() -> {
+            Drawable.ConstantState loaded = null;
+            try {
+                PackageManager pm = getPackageManager();
+                ApplicationInfo ai = pm.getApplicationInfo(packageName, 0);
+                Drawable icon = ai.loadIcon(pm);
+                if (icon != null) {
+                    loaded = icon.getConstantState();
+                }
+            } catch (PackageManager.NameNotFoundException ignored) {
+                // 包不在了（已卸载/被禁用），保持占位图
+            }
+            if (loaded == null) {
+                return; // 取不到就不必回主线程了
+            }
+            final Drawable.ConstantState state = loaded;
+            mainHandler.post(() -> {
+                if (isDestroyed()) {
+                    return;
+                }
+                // 结果回来时这一行可能已经被复用成别的包，对不上就丢弃
+                if (!packageName.equals(iconView.getTag(R.id.service_icon))) {
+                    return;
+                }
+                iconCache.put(packageName, state);
+                // M3 淡入：图标淡进来，而不是"啪"地跳出来。
+                // 时长/缓动都从主题的 M3 token 取（motionDurationShort4 + emphasized decelerate），
+                // 主题里没有才回落到上面的标准值。
+                iconView.setAlpha(0f);
+                iconView.setImageDrawable(state.newDrawable(getResources()));
+                iconView.animate()
+                        .alpha(1f)
+                        .setDuration(MotionUtils.resolveThemeDuration(iconView.getContext(),
+                                R.attr.motionDurationShort4, ICON_FADE_FALLBACK_MS))
+                        .setInterpolator(MotionUtils.resolveThemeInterpolator(iconView.getContext(),
+                                R.attr.motionEasingEmphasizedDecelerateInterpolator, M3_EMPHASIZED_DECELERATE))
+                        .start();
+            });
+        });
     }
 
     private boolean shouldShowService(AccessibilityServiceInfo info, boolean showSystem) {
@@ -440,6 +537,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         // quitSafely：已经排进队列的那次设置写入仍会执行完，不丢用户刚拨的状态
+        // 图标后台加载：已排队的任务不再有意义（界面都要没了），直接丢掉
+        iconExecutor.shutdownNow();
         if (toggleThread != null) {
             toggleThread.quitSafely();
         }
@@ -620,6 +719,21 @@ public class MainActivity extends AppCompatActivity {
             // 切图标失败不该影响启动；下次进界面还会再同步一次
             Log.w(TAG, "切换桌面图标别名失败: " + aliasSuffix, e);
         }
+    }
+
+    /**
+     * 取服务描述，只在用户点开弹窗时才调用。
+     * <p>
+     * AccessibilityServiceInfo.loadDescription() 要走 PackageManager 读该服务在清单里的
+     * meta-data，是实打实一次 IPC + XML 解析。原先它在 getView 里每绑一行就取一次，
+     * 而结果显示出来根本用不到（只有点击弹窗才用）—— 这是启动路径上最后一个逐行 IPC。
+     * 挪到点击时做，代价只是弹窗晚几毫秒，看不出来。
+     */
+    private CharSequence loadServiceDescription(AccessibilityServiceInfo info) {
+        CharSequence description = info.loadDescription(getPackageManager());
+        return TextUtils.isEmpty(description)
+                ? getString(R.string.service_description_fallback)
+                : description;
     }
 
     private void showServiceDescriptionDialog(String title, CharSequence description) {
@@ -838,7 +952,8 @@ public class MainActivity extends AppCompatActivity {
             PackageManager pm = getPackageManager();
             AppMeta meta = cn == null ? null : getAppMeta(cn.getPackageName());
 
-            holder.serviceIconIv.setImageResource(android.R.drawable.sym_def_app_icon);
+            // 图标懒加载：只摆占位图 + 挂后台任务，首帧不必等 PackageManager（见 loadServiceIcon）
+            loadServiceIcon(holder.serviceIconIv, cn == null ? null : cn.getPackageName());
             String title = id;
             CharSequence serviceLabel = info.getResolveInfo() != null
                     ? info.getResolveInfo().loadLabel(pm)
@@ -848,19 +963,6 @@ public class MainActivity extends AppCompatActivity {
             } else if (meta != null && meta.found && !TextUtils.isEmpty(meta.label)) {
                 title = meta.label.toString();
             }
-            if (meta != null && meta.found) {
-                Drawable icon = copyIcon(meta.icon);
-                if (icon != null) {
-                    holder.serviceIconIv.setImageDrawable(icon);
-                }
-            }
-
-            // 原始的服务描述（用于 dialog），保留读取逻辑
-            CharSequence description = info.loadDescription(pm);
-            CharSequence fullDescription = TextUtils.isEmpty(description)
-                    ? getString(R.string.service_description_fallback)
-                    : description;
-
             // 将列表项中的描述替换为 "由（应用名称）提供"，使用你新增的字符串资源 provided_by
             String providerAppName;
             if (meta != null && meta.found && !TextUtils.isEmpty(meta.label)) {
@@ -879,9 +981,10 @@ public class MainActivity extends AppCompatActivity {
             boolean isEnabled = isServiceEnabledSnapshot(id);
             boolean isDaemon = DaemonListStore.containsId(daemonListStr, id);
             final String dialogTitle = title;
-            final CharSequence dialogDescription = fullDescription;
 
-            holder.cardView.setOnClickListener(v -> showServiceDescriptionDialog(dialogTitle, dialogDescription));
+            // 服务描述只有点开弹窗时才用得到：改成点击那一刻才去读（见 loadServiceDescription）
+            holder.cardView.setOnClickListener(v -> showServiceDescriptionDialog(dialogTitle,
+                    loadServiceDescription(info)));
 
             holder.serviceSwitch.setOnCheckedChangeListener(null);
             holder.serviceSwitch.setChecked(isEnabled);

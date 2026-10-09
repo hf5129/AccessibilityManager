@@ -1,0 +1,43 @@
+# Baseline profile for AccessibilityManager
+#
+# 目的：把启动路径上真正要跑的类，在安装/首次 dexopt 时就编译好（AOT），
+# 少走运行时解释/JIT 的弯路。只在**非 debuggable** 构建（release / releaseTest）生效；
+# debug 包不吃 profile，拿 debug 包对比是量不出差别的。
+#
+# 这里只写"我们自己的类 + 启动路径上用到的 material 组件"。
+# 依赖库自带的 baseline profile（appcompat / lifecycle / core / fragment 等 56 个 AAR 都带）
+# 由 AGP 在合并时自动并入，不需要在这里重复，否则会重复得又长又难维护。
+# 注意：material 1.14 的 AAR 本身不带 profile，所以下面把用到的 material 组件列了出来。
+
+# ---- 应用入口（Application 子类，进程起来第一个跑）----
+Lcom/accessibilitymanager/DynamicColors;
+
+# ---- 主界面与列表 ----
+Lcom/accessibilitymanager/MainActivity;
+Lcom/accessibilitymanager/MainActivity$ServiceAdapter;
+Lcom/accessibilitymanager/MainActivity$AppMeta;
+
+# ---- 设置项与工具 ----
+Lcom/accessibilitymanager/AppConstants;
+Lcom/accessibilitymanager/AccessibilityUtils;
+Lcom/accessibilitymanager/DaemonListStore;
+Lcom/accessibilitymanager/PermissionUtils;
+
+# ---- 保活相关 ----
+Lcom/accessibilitymanager/DaemonService;
+Lcom/accessibilitymanager/KeepAliveAccessibilityService;
+Lcom/accessibilitymanager/StartReceiver;
+
+# ---- 启动路径上用到的 material 组件（material 1.14 自身不带 profile）----
+Lcom/google/android/material/color/DynamicColors;
+Lcom/google/android/material/color/DynamicColorsOptions;
+Lcom/google/android/material/theme/MaterialComponentsViewInflater;
+Lcom/google/android/material/appbar/AppBarLayout;
+Lcom/google/android/material/appbar/MaterialToolbar;
+Lcom/google/android/material/card/MaterialCardView;
+Lcom/google/android/material/listitem/ListItemLayout;
+Lcom/google/android/material/listitem/ListItemCardView;
+Lcom/google/android/material/materialswitch/MaterialSwitch;
+Lcom/google/android/material/button/MaterialButton;
+Lcom/google/android/material/checkbox/MaterialCheckBox;
+Lcom/google/android/material/dialog/MaterialAlertDialogBuilder;
