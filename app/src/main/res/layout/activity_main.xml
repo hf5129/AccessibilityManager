@@ -49,14 +49,18 @@
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <ListView
+    <!--
+      用 RecyclerView 而不是 ListView：列表增删 / 顺序变化的动画要靠它自带的 item 动画
+      （DefaultItemAnimator）—— 新增淡入+位移、删除淡出+收起、顺序变化位移。
+      原来那两个 android:divider / dividerHeight 是 ListView 专有属性，RecyclerView 没有，
+      卡片之间的间距本来就由 item.xml 里卡片的 margin 控制，所以直接去掉。
+    -->
+    <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/list"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="?attr/colorSurface"
         android:clipToPadding="false"
-        android:divider="@null"
-        android:dividerHeight="0dp"
         android:paddingTop="0dp"
         android:paddingBottom="16dp"
         android:scrollbars="none"

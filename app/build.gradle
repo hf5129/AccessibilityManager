@@ -81,6 +81,9 @@ dependencies {
     // 显式覆盖 material 1.14.0 传递进来的 appcompat 1.7.0 / annotation 1.8.1
     implementation 'androidx.appcompat:appcompat:1.8.0'
     implementation 'androidx.annotation:annotation:1.10.0'
+    // 列表增删/移动动画用的是 RecyclerView 自带的 item 动画（material 1.14 的 POM 本就依赖
+    // androidx.recyclerview:recyclerview:1.2.1；用到的依赖还是显式声明，版本与它保持一致）
+    implementation 'androidx.recyclerview:recyclerview:1.2.1'
 
     testImplementation 'junit:junit:4.13.2'
 }

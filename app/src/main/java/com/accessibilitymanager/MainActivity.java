@@ -36,9 +36,7 @@ import android.view.ViewParent;
 import android.view.animation.PathInterpolator;
 import android.view.Window;
 import android.view.accessibility.AccessibilityManager;
-import android.widget.BaseAdapter;
 import android.widget.ImageView;
-import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -48,6 +46,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.transition.Transition;
 import androidx.transition.TransitionListenerAdapter;
+import androidx.recyclerview.widget.DefaultItemAnimator;
+import androidx.recyclerview.widget.DiffUtil;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.ListAdapter;
+import androidx.recyclerview.widget.RecyclerView;
 import androidx.transition.TransitionManager;
 
 import com.google.android.material.button.MaterialButton;
@@ -82,7 +85,8 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_CODE_POST_NOTIFICATIONS = 1001; // 权限请求码
 
-    private List<AccessibilityServiceInfo> serviceList;
+    private List<ServiceRow> serviceList;
+    private RecyclerView listView;
     private List<AccessibilityServiceInfo> allServices;
     private SharedPreferences sp;
     private String daemonListStr;
@@ -145,6 +149,37 @@ public class MainActivity extends AppCompatActivity {
     /** 兜底缓动：M3 emphasized decelerate 曲线 cubic-bezier(0.05, 0.7, 0.1, 1.0)。 */
     private static final TimeInterpolator M3_EMPHASIZED_DECELERATE =
             new PathInterpolator(0.05f, 0.7f, 0.1f, 1.0f);
+
+    /**
+     * 列表行 = 服务信息 + 该行当前的显示状态快照。
+     * <p>
+     * DiffUtil 靠这两个布尔值判断「这一行的内容变了没有」：变了才重绑（内容变化不播交叉淡入，
+     * 见 initListView 里的 setSupportsChangeAnimations(false)）；位置变化则交给 item 动画去做。
+     */
+    private static final class ServiceRow {
+        final AccessibilityServiceInfo info;
+        final boolean enabled;
+        final boolean daemon;
+
+        ServiceRow(AccessibilityServiceInfo info, boolean enabled, boolean daemon) {
+            this.info = info;
+            this.enabled = enabled;
+            this.daemon = daemon;
+        }
+    }
+
+    /** DiffUtil 回调：身份＝服务 id，内容＝该行的显示状态。 */
+    private static final class ServiceRowDiff extends DiffUtil.ItemCallback<ServiceRow> {
+        @Override
+        public boolean areItemsTheSame(@NonNull ServiceRow oldItem, @NonNull ServiceRow newItem) {
+            return oldItem.info.getId().equals(newItem.info.getId());
+        }
+
+        @Override
+        public boolean areContentsTheSame(@NonNull ServiceRow oldItem, @NonNull ServiceRow newItem) {
+            return oldItem.enabled == newItem.enabled && oldItem.daemon == newItem.daemon;
+        }
+    }
 
     /**
      * 一个包的应用元数据；found = false 表示查不到这个包。
@@ -237,7 +272,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initListView() {
-        ListView listView = findViewById(R.id.list);
+        listView = findViewById(R.id.list);
+        listView.setLayoutManager(new LinearLayoutManager(this));
+        // item 动画用 RecyclerView 自带的 DefaultItemAnimator：新增淡入+位移、删除淡出+收起、
+        // 顺序变化走位移动画（点锁定后置顶就是靠它）。关掉「内容变化」的交叉淡入 —— 那在列表里
+        // 看着就是闪一下；内容变化直接重绑即可（DiffUtil 只在显示状态真的变了时才判定为变化）。
+        DefaultItemAnimator itemAnimator = new DefaultItemAnimator();
+        itemAnimator.setSupportsChangeAnimations(false);
+        listView.setItemAnimator(itemAnimator);
+
         AccessibilityManager am = (AccessibilityManager) getSystemService(Context.ACCESSIBILITY_SERVICE);
 
         if (am != null) {
@@ -246,10 +289,10 @@ public class MainActivity extends AppCompatActivity {
             allServices = new ArrayList<>();
         }
 
-        refreshServiceList();
-
         adapter = new ServiceAdapter();
         listView.setAdapter(adapter);
+        // 第一份数据要放在 setAdapter 之后：ListAdapter 只有拿到 list 才会渲染
+        refreshServiceList();
     }
 
     /**
@@ -258,7 +301,7 @@ public class MainActivity extends AppCompatActivity {
      * 但已开启无障碍权限且已锁定（保活名单）的系统应用始终保留。
      */
     private void refreshServiceList() {
-        // 滑柄自己的形变窗口内不干这活：这里要读一次 Settings（IPC）、过滤排序，再让 ListView
+        // 滑柄自己的形变窗口内不干这活：这里要读一次 Settings（IPC）、过滤排序，再让列表
         // 把可见项全部重绑，整段压在这 250ms 上滑柄就会掉帧。所以攒着，等窗口过去由
         // flushAdapterRefresh() 再刷 —— 那时 lastToggleAt 已经出了窗口，这里会直接放行。
         long sinceToggle = SystemClock.uptimeMillis() - lastToggleAt;
@@ -273,10 +316,13 @@ public class MainActivity extends AppCompatActivity {
         boolean showSystem = sp.getBoolean(AppConstants.KEY_SHOW_SYSTEM_APPS, false);
         // 一个刷新周期只读一次 Settings，后面全查快照（原来是逐服务、逐行各读一次）。
         enabledServiceSnapshot = AccessibilityUtils.getEnabledServices(this);
-        List<AccessibilityServiceInfo> filtered = new ArrayList<>();
+        List<ServiceRow> filtered = new ArrayList<>();
         for (AccessibilityServiceInfo info : allServices) {
             if (shouldShowService(info, showSystem)) {
-                filtered.add(info);
+                // 该行的显示状态在这里快照：DiffUtil 靠它决定这一行要不要重绑
+                String id = info.getId();
+                filtered.add(new ServiceRow(info, isServiceEnabledSnapshot(id),
+                        DaemonListStore.containsId(daemonListStr, id)));
             }
         }
         serviceList = filtered;
@@ -323,7 +369,7 @@ public class MainActivity extends AppCompatActivity {
      * 懒加载一行的应用图标：先摆占位图，命中缓存立刻换真图标，否则丢到后台线程去取。
      * <p>
      * 这是启动速度那次优化的核心一步：图标是列表里唯一的重量级 IPC，而首帧只需要文字。
-     * ListView 只会绑定真正显示出来的行，所以这里天然只给可见行走一遍；滚动时按需补。
+     * 列表只会绑定真正显示出来的行，所以这里天然只给可见行走一遍；滚动时按需补。
      * <p>
      * 复用防护：把"这一行现在要显示哪个包"记在 ImageView 的 tag 上，后台结果回来时对不上
      * 就丢掉 —— 否则快速滚动时 convertView 被复用，图标会串行。
@@ -408,11 +454,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void sortServices() {
-        Collections.sort(serviceList, (o1, o2) -> {
-            boolean firstPinned = DaemonListStore.containsId(daemonListStr, o1.getId());
-            boolean secondPinned = DaemonListStore.containsId(daemonListStr, o2.getId());
-            return Boolean.compare(secondPinned, firstPinned);
-        });
+        // 锁定（在保活名单里）的置顶。Collections.sort 是稳定排序，所以其余项保持原有顺序 ——
+        // 这一点对动画很重要：只有被锁的那一项位置变了，DiffUtil 就只报一个 move，
+        // 动画干净利落，不会整列乱跳。
+        Collections.sort(serviceList, (o1, o2) -> Boolean.compare(o2.daemon, o1.daemon));
     }
 
     private void initSettingsObserver() {
@@ -790,7 +835,7 @@ public class MainActivity extends AppCompatActivity {
             }
         } else {
             pendingAdapterRefresh = false;
-            adapter.notifyDataSetChanged();
+            submitServiceList();
         }
     }
 
@@ -810,8 +855,32 @@ public class MainActivity extends AppCompatActivity {
         }
         if (pendingAdapterRefresh) {
             pendingAdapterRefresh = false;
-            adapter.notifyDataSetChanged();
+            submitServiceList();
         }
+    }
+
+    /**
+     * 把当前 serviceList 交给 ListAdapter：DiffUtil 算出新增 / 删除 / 移动，RecyclerView 据此播动画。
+     * <p>
+     * 提交完成后再等 item 动画全部跑完，补一次「整体重绑」：卡片的圆角与边距是按位置算的
+     * （ListItemLayout 的 state_first/middle/last/single + applySegmentedEdgeMargins），
+     * 而被移动的行不会自动重绑 —— 不补这一下就会出现「置顶之后圆角还是中间那一档」。
+     */
+    private void submitServiceList() {
+        if (adapter == null) {
+            return;
+        }
+        adapter.submitList(new ArrayList<>(serviceList), () -> {
+            RecyclerView list = listView;
+            if (list == null || list.getItemAnimator() == null) {
+                return;
+            }
+            list.getItemAnimator().isRunning(() -> {
+                if (adapter != null) {
+                    adapter.notifyItemRangeChanged(0, adapter.getItemCount());
+                }
+            });
+        });
     }
 
     /**
@@ -903,50 +972,34 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    class ServiceAdapter extends BaseAdapter {
+    /**
+     * 列表适配器：ListAdapter + DiffUtil。增删/移动的动画由 RecyclerView 的 item 动画负责。
+     */
+    class ServiceAdapter extends ListAdapter<ServiceRow, ViewHolder> {
+
+        ServiceAdapter() {
+            super(new ServiceRowDiff());
+        }
+
+        @NonNull
         @Override
-        public int getCount() {
-            return serviceList.size();
+        public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            View item = LayoutInflater.from(MainActivity.this).inflate(R.layout.item, parent, false);
+            return new ViewHolder(item);
         }
 
         @Override
-        public Object getItem(int position) {
-            return serviceList.get(position);
-        }
-
-        @Override
-        public long getItemId(int position) {
-            return position;
-        }
-
-        @SuppressLint("InflateParams")
-        @Override
-        public View getView(int position, View convertView, ViewGroup parent) {
-            ViewHolder holder;
-            if (convertView == null) {
-                convertView = LayoutInflater.from(MainActivity.this).inflate(R.layout.item, parent, false);
-                holder = new ViewHolder();
-                holder.cardView = convertView.findViewById(R.id.card_view);
-                holder.serviceNameTv = convertView.findViewById(R.id.service_name);
-                holder.serviceDescTv = convertView.findViewById(R.id.service_desc);
-                holder.serviceIconIv = convertView.findViewById(R.id.service_icon);
-                holder.serviceSwitch = convertView.findViewById(R.id.service_switch);
-                holder.lockButton = convertView.findViewById(R.id.lock_button);
-                holder.listItemLayout = convertView.findViewById(R.id.list_item_layout);
-                convertView.setTag(holder);
-            } else {
-                holder = (ViewHolder) convertView.getTag();
-            }
-
+        public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+            ServiceRow row = getItem(position);
             // 官方 M3 Expressive Lists：ListItemLayout 按位置下发 state_first / state_middle / state_last / state_single，
             // ListItemCardView 靠 duplicateParentState 自动切换圆角与容器色
-            holder.listItemLayout.updateAppearance(position, getCount());
+            holder.listItemLayout.updateAppearance(position, getItemCount());
 
             // 间距：卡片自带上下各 1dp（相邻两项之间＝2dp）；但外沿那 1dp（第一项上面、最后一项下面）
             // 会让列表顶部与底部各多出 1dp，这里按位置去掉。详见 applySegmentedEdgeMargins()。
-            applySegmentedEdgeMargins(holder.cardView, position, getCount());
+            applySegmentedEdgeMargins(holder.cardView, position, getItemCount());
 
-            AccessibilityServiceInfo info = serviceList.get(position);
+            AccessibilityServiceInfo info = row.info;
             String id = info.getId();
             ComponentName cn = ComponentName.unflattenFromString(id);
             PackageManager pm = getPackageManager();
@@ -978,8 +1031,9 @@ public class MainActivity extends AppCompatActivity {
             holder.serviceDescTv.setText(providerText);
             holder.serviceDescTv.setContentDescription(providerText); // 无障碍友好
 
-            boolean isEnabled = isServiceEnabledSnapshot(id);
-            boolean isDaemon = DaemonListStore.containsId(daemonListStr, id);
+            // 这两个状态在构建列表时就快照进 ServiceRow 了（DiffUtil 靠它们判断这一行要不要重绑）
+            boolean isEnabled = row.enabled;
+            boolean isDaemon = row.daemon;
             final String dialogTitle = title;
 
             // 服务描述只有点开弹窗时才用得到：改成点击那一刻才去读（见 loadServiceDescription）
@@ -1044,7 +1098,6 @@ public class MainActivity extends AppCompatActivity {
                             AccessibilityUtils.tryEnableKeepAliveService(appContext));
                 }
             });
-            return convertView;
         }
 
         private void updateDaemonList(String id, boolean add) {
@@ -1056,13 +1109,25 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    static class ViewHolder {
-        MaterialCardView cardView;
-        ListItemLayout listItemLayout;
-        TextView serviceNameTv;
-        TextView serviceDescTv;
-        ImageView serviceIconIv;
-        MaterialSwitch serviceSwitch;
-        MaterialButton lockButton;
+    /** RecyclerView 的行视图持有者。 */
+    static class ViewHolder extends RecyclerView.ViewHolder {
+        final MaterialCardView cardView;
+        final ListItemLayout listItemLayout;
+        final TextView serviceNameTv;
+        final TextView serviceDescTv;
+        final ImageView serviceIconIv;
+        final MaterialSwitch serviceSwitch;
+        final MaterialButton lockButton;
+
+        ViewHolder(@NonNull View itemView) {
+            super(itemView);
+            cardView = itemView.findViewById(R.id.card_view);
+            listItemLayout = itemView.findViewById(R.id.list_item_layout);
+            serviceNameTv = itemView.findViewById(R.id.service_name);
+            serviceDescTv = itemView.findViewById(R.id.service_desc);
+            serviceIconIv = itemView.findViewById(R.id.service_icon);
+            serviceSwitch = itemView.findViewById(R.id.service_switch);
+            lockButton = itemView.findViewById(R.id.lock_button);
+        }
     }
 }
