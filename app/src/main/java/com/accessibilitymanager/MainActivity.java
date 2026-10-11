@@ -2,7 +2,6 @@ package com.accessibilitymanager;
 
 import android.Manifest;
 import android.accessibilityservice.AccessibilityServiceInfo;
-import android.annotation.SuppressLint;
 import android.app.ActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
@@ -87,6 +86,7 @@ public class MainActivity extends AppCompatActivity {
 
     private List<ServiceRow> serviceList;
     private RecyclerView listView;
+    private MoveOnTopItemAnimator listItemAnimator;
     private List<AccessibilityServiceInfo> allServices;
     private SharedPreferences sp;
     private String daemonListStr;
@@ -277,9 +277,30 @@ public class MainActivity extends AppCompatActivity {
         // item 动画用 RecyclerView 自带的 DefaultItemAnimator：新增淡入+位移、删除淡出+收起、
         // 顺序变化走位移动画（点锁定后置顶就是靠它）。关掉「内容变化」的交叉淡入 —— 那在列表里
         // 看着就是闪一下；内容变化直接重绑即可（DiffUtil 只在显示状态真的变了时才判定为变化）。
-        DefaultItemAnimator itemAnimator = new DefaultItemAnimator();
-        itemAnimator.setSupportsChangeAnimations(false);
-        listView.setItemAnimator(itemAnimator);
+        listItemAnimator = new MoveOnTopItemAnimator();
+        listItemAnimator.setSupportsChangeAnimations(false);
+        // 动画落定后只重刷「按位置算的两样东西」（分段圆角 + 边距），不做整表重绑 ——
+        // 整表重绑会把可见行的图标、文字、监听器全部再走一遍，落在落定那一帧上会掉帧。
+        listItemAnimator.setRebindNeeded(this::refreshPositionDependentAppearance);
+        listView.setItemAnimator(listItemAnimator);
+        // 让「用户刚操作的那一项」最后绘制 = 画在最上层。RecyclerView 默认按子视图下标绘制
+        // （下标小的先画、在下面）：锁定置顶后那一项的下标变成 0，就会被后面的项盖住、看着像
+        // 从别人下面穿过；取消锁定是往下移、下标变大，天然画在上面 —— 这个回调把两边拉成一致。
+        // 只在它位移期间生效，动画结束就恢复默认顺序。
+        listView.setChildDrawingOrderCallback((childCount, drawingPosition) -> {
+            RecyclerView.ViewHolder onTop = listItemAnimator.onTopHolder();
+            if (onTop == null) {
+                return drawingPosition; // 没有正在位移的目标项，保持默认顺序
+            }
+            int onTopIndex = listView.indexOfChild(onTop.itemView);
+            if (onTopIndex < 0) {
+                return drawingPosition;
+            }
+            if (drawingPosition == childCount - 1) {
+                return onTopIndex; // 最后一个绘制位留给它
+            }
+            return drawingPosition < onTopIndex ? drawingPosition : drawingPosition + 1;
+        });
 
         AccessibilityManager am = (AccessibilityManager) getSystemService(Context.ACCESSIBILITY_SERVICE);
 
@@ -862,25 +883,17 @@ public class MainActivity extends AppCompatActivity {
     /**
      * 把当前 serviceList 交给 ListAdapter：DiffUtil 算出新增 / 删除 / 移动，RecyclerView 据此播动画。
      * <p>
-     * 提交完成后再等 item 动画全部跑完，补一次「整体重绑」：卡片的圆角与边距是按位置算的
-     * （ListItemLayout 的 state_first/middle/last/single + applySegmentedEdgeMargins），
-     * 而被移动的行不会自动重绑 —— 不补这一下就会出现「置顶之后圆角还是中间那一档」。
+     * 「补刷」不在这里做 —— 时机交给动画器（见 MoveOnTopItemAnimator#setRebindNeeded）：
+     * 卡片的圆角与边距是按位置算的（ListItemLayout 的 state_first/middle/last/single +
+     * applySegmentedEdgeMargins），而被移动的行不会自动重绑，必须在动画落定之后补一次。
+     * 早先在这里用 ItemAnimator.isRunning(listener) 等动画，是错的：提交那一刻动画还没排上，
+     * listener 会立刻触发，反而把「要置顶的那一项」提前清空了。
      */
     private void submitServiceList() {
         if (adapter == null) {
             return;
         }
-        adapter.submitList(new ArrayList<>(serviceList), () -> {
-            RecyclerView list = listView;
-            if (list == null || list.getItemAnimator() == null) {
-                return;
-            }
-            list.getItemAnimator().isRunning(() -> {
-                if (adapter != null) {
-                    adapter.notifyItemRangeChanged(0, adapter.getItemCount());
-                }
-            });
-        });
+        adapter.submitList(new ArrayList<>(serviceList));
     }
 
     /**
@@ -973,6 +986,40 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
+     * 动画落定后的轻量补刷：只把「按位置算的两样东西」重刷一遍 —— 分段圆角
+     * （{@code ListItemLayout.updateAppearance} 下发的 state_first/middle/last/single）与顶/底边距。
+     * <p>
+     * 为什么需要：被移动的行不会自动重绑，而这两样都是按位置算的，不补就会停在旧位置那一档。
+     * 为什么不直接 {@code notifyItemRangeChanged}：那会把可见行整行重绑（图标、文字、监听器全重来），
+     * 压在动画落定那一帧上会明显掉帧；这里只碰这两样，代价小得多。
+     * 只处理当前可见的行 —— 移出屏幕的行下次绑定时自然会算对。
+     */
+    private void refreshPositionDependentAppearance() {
+        if (listView == null || adapter == null) {
+            return;
+        }
+        final int count = adapter.getItemCount();
+        for (int i = 0; i < listView.getChildCount(); i++) {
+            View child = listView.getChildAt(i);
+            if (child == null) {
+                continue;
+            }
+            int position = listView.getChildAdapterPosition(child);
+            if (position == RecyclerView.NO_POSITION) {
+                continue;
+            }
+            ListItemLayout itemLayout = child.findViewById(R.id.list_item_layout);
+            if (itemLayout != null) {
+                itemLayout.updateAppearance(position, count);
+            }
+            View card = child.findViewById(R.id.card_view);
+            if (card != null) {
+                applySegmentedEdgeMargins(card, position, count); // 内部只在真的变了时才设 LayoutParams
+            }
+        }
+    }
+
+    /**
      * 列表适配器：ListAdapter + DiffUtil。增删/移动的动画由 RecyclerView 的 item 动画负责。
      */
     class ServiceAdapter extends ListAdapter<ServiceRow, ViewHolder> {
@@ -1001,6 +1048,7 @@ public class MainActivity extends AppCompatActivity {
 
             AccessibilityServiceInfo info = row.info;
             String id = info.getId();
+            holder.serviceId = id;
             ComponentName cn = ComponentName.unflattenFromString(id);
             PackageManager pm = getPackageManager();
             AppMeta meta = cn == null ? null : getAppMeta(cn.getPackageName());
@@ -1105,12 +1153,103 @@ public class MainActivity extends AppCompatActivity {
                     ? DaemonListStore.addId(daemonListStr, id)
                     : DaemonListStore.removeId(daemonListStr, id);
             sp.edit().putString(AppConstants.KEY_DAEMON_LIST, daemonListStr).apply();
+            // 这一行马上要换位置（锁定置顶 / 取消锁定落回原位）：告诉动画器，位移时把它画在最上层
+            if (listItemAnimator != null) {
+                listItemAnimator.expectOnTop(id);
+            }
             refreshServiceList();
+        }
+    }
+
+    /**
+     * {@link DefaultItemAnimator} 的子类，只多做一件事：认出「用户刚操作过的那一项」，
+     * 好让 RecyclerView 把它画在最上层（见 initListView 里的绘制顺序回调）。
+     * <p>
+     * 为什么只认那一项：列表整体上移时，被顶下去的行**也会**触发 animateMove（它们在滑动），
+     * 若把"正在位移的行"统统置顶，反而会让这一项被那些顺带滑动的行盖住 —— 实测就是
+     * "取消锁定后先从第一个选项下面过去"。所以这里按服务 id 认准它。
+     */
+    private static class MoveOnTopItemAnimator extends DefaultItemAnimator {
+
+        /** 用户刚操作过的那一行（服务 id）；由 updateDaemonList() 设置。 */
+        private String expectedServiceId;
+
+        /** 该项正在位移时对应的 ViewHolder（要在绘制顺序里排到最后）。 */
+        private RecyclerView.ViewHolder onTopHolder;
+
+        void expectOnTop(String serviceId) {
+            expectedServiceId = serviceId;
+        }
+
+        @Override
+        public boolean animateMove(@NonNull RecyclerView.ViewHolder holder,
+                                   int fromX, int fromY, int toX, int toY) {
+            boolean started = super.animateMove(holder, fromX, fromY, toX, toY);
+            if (started) {
+                // 在动画真正开始前的这一帧就认出来，避免开头一帧画错层
+                captureIfExpected(holder);
+            }
+            return started;
+        }
+
+        @Override
+        public void onMoveStarting(@NonNull RecyclerView.ViewHolder item) {
+            super.onMoveStarting(item);
+            captureIfExpected(item);
+        }
+
+        @Override
+        public void onMoveFinished(@NonNull RecyclerView.ViewHolder item) {
+            super.onMoveFinished(item);
+            if (onTopHolder == item) {
+                // 这一项已经落位，期望值用完即清（下次用户操作会重新设置）
+                onTopHolder = null;
+                expectedServiceId = null;
+            }
+        }
+
+        private void captureIfExpected(RecyclerView.ViewHolder item) {
+            if (expectedServiceId != null
+                    && item instanceof ViewHolder
+                    && expectedServiceId.equals(((ViewHolder) item).serviceId)) {
+                onTopHolder = item;
+            }
+        }
+
+        /** 动画落定后的补刷动作（由 MainActivity 提供）：让按位置算的圆角与边距重算一次。 */
+        private Runnable rebindNeeded;
+        private boolean rebindPending;
+
+        void setRebindNeeded(Runnable action) {
+            rebindNeeded = action;
+        }
+
+        @Override
+        public void onAnimationFinished(@NonNull RecyclerView.ViewHolder item) {
+            super.onAnimationFinished(item);
+            if (rebindPending || rebindNeeded == null) {
+                return; // 同一批动画会结束很多次，合并成一次补刷
+            }
+            rebindPending = true;
+            // 推到下一帧：补刷若和"落地"那一帧挤在一起会掉帧（实测落地前一刻会卡一下）
+            item.itemView.post(() -> {
+                rebindPending = false;
+                rebindNeeded.run();
+            });
+        }
+
+        /** 要画在最上层的那一项；没有位移时为 null。 */
+        RecyclerView.ViewHolder onTopHolder() {
+            return onTopHolder;
         }
     }
 
     /** RecyclerView 的行视图持有者。 */
     static class ViewHolder extends RecyclerView.ViewHolder {
+
+        /** 这一行绑定的服务 id：绘制顺序回调据此认出"用户刚操作的那一项"。 */
+        String serviceId;
+
         final MaterialCardView cardView;
         final ListItemLayout listItemLayout;
         final TextView serviceNameTv;
