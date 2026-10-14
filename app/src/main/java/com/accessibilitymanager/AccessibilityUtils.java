@@ -18,7 +18,6 @@ import java.util.Set;
 public class AccessibilityUtils {
     private static final String TAG = "AccessibilityUtils";
     private static final String SETTING_KEY = Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES;
-    private static final TextUtils.SimpleStringSplitter COLON_SPLITTER = new TextUtils.SimpleStringSplitter(':');
 
     /**
      * 获取当前系统已开启的无障碍服务列表
@@ -34,9 +33,12 @@ public class AccessibilityUtils {
             return enabledServices;
         }
 
-        COLON_SPLITTER.setString(settingValue);
-        while (COLON_SPLITTER.hasNext()) {
-            String componentNameString = COLON_SPLITTER.next();
+        // 解析器必须是局部变量：本方法会被主线程（刷新列表）、ToggleWorker（拨开关/锁按钮）
+        // 与 DaemonWorker（保活检查）并发调用，静态的有状态解析器会被 setString/next 踩串。
+        TextUtils.SimpleStringSplitter splitter = new TextUtils.SimpleStringSplitter(':');
+        splitter.setString(settingValue);
+        while (splitter.hasNext()) {
+            String componentNameString = splitter.next();
             ComponentName enabledService = ComponentName.unflattenFromString(componentNameString);
             if (enabledService != null) {
                 enabledServices.add(enabledService);
@@ -50,8 +52,10 @@ public class AccessibilityUtils {
      *
      * @param context  上下文
      * @param services 要开启的所有服务的集合
+     * @return 实际写进去的那串设置值；写入失败返回 null。
+     *         DaemonService 用它和"下次读到的值"比对，判断设置变化是不是自己引起的。
      */
-    public static void setEnabledServices(Context context, Set<ComponentName> services) {
+    public static String setEnabledServices(Context context, Set<ComponentName> services) {
         StringBuilder sb = new StringBuilder();
         for (ComponentName componentName : services) {
             if (sb.length() > 0) {
@@ -59,11 +63,19 @@ public class AccessibilityUtils {
             }
             sb.append(componentName.flattenToString());
         }
+        String value = sb.toString();
         try {
-            Settings.Secure.putString(context.getContentResolver(), SETTING_KEY, sb.toString());
+            Settings.Secure.putString(context.getContentResolver(), SETTING_KEY, value);
+            return value;
         } catch (Exception e) {
             Log.e(TAG, "写入安全设置失败，可能无权限", e);
+            return null;
         }
+    }
+
+    /** 直接取设置里的原始字符串（不解析），用于和"自己写进去的值"比对。 */
+    public static String getRawEnabledServices(Context context) {
+        return Settings.Secure.getString(context.getContentResolver(), SETTING_KEY);
     }
 
     /**

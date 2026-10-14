@@ -120,7 +120,8 @@ public class MainActivity extends AppCompatActivity {
      * 图标不在其中：loadIcon() 是最贵的那一项，单独走 iconCache + loadServiceIcon() 懒加载，
      * 只有真正绑到屏幕上的行才去取。
      */
-    private final Map<String, AppMeta> appMetaCache = new HashMap<>();
+    private final Map<String, AppMeta> appMetaCache =
+            Collections.synchronizedMap(new HashMap<String, AppMeta>());
 
     /**
      * 图标缓存：键＝包名，值＝图标的 ConstantState。
@@ -302,18 +303,53 @@ public class MainActivity extends AppCompatActivity {
             return drawingPosition < onTopIndex ? drawingPosition : drawingPosition + 1;
         });
 
-        AccessibilityManager am = (AccessibilityManager) getSystemService(Context.ACCESSIBILITY_SERVICE);
-
-        if (am != null) {
-            allServices = new ArrayList<>(am.getInstalledAccessibilityServiceList());
-        } else {
-            allServices = new ArrayList<>();
-        }
+        // 服务列表本身是一次 IPC（要到 AccessibilityManagerService 去取），改前是在 onCreate 里
+        // 同步取的，首帧得等它。现在先给个空列表把界面搭起来，数据交给 loadServicesAsync()
+        // 在后台取 —— 取完连同「每个包的元数据」一起回主线程刷一次，所以这里不再立刻 refresh。
+        allServices = new ArrayList<>();
 
         adapter = new ServiceAdapter();
         listView.setAdapter(adapter);
-        // 第一份数据要放在 setAdapter 之后：ListAdapter 只有拿到 list 才会渲染
-        refreshServiceList();
+        loadServicesAsync();
+    }
+
+    /**
+     * 后台取「已安装的无障碍服务」并预热 per-package 元数据缓存，然后回主线程刷列表。
+     * <p>
+     * 这里把两笔最贵的 IPC 一起做掉：
+     * 1) {@code am.getInstalledAccessibilityServiceList()}：改前在 onCreate 主线程同步执行，压在首帧上；
+     * 2) 每个包的 {@code getApplicationInfo()}／{@code loadLabel()}（过滤系统应用要用）和每个服务的
+     *    {@code ServiceInfo.loadLabel()}（绑定要用）：改前都是主线程上「首次遇到才算」，一次刷新
+     *    就要几十趟 IPC。预热之后，主线程那几趟刷新只查内存里的缓存。
+     * <p>
+     * 代价：首帧列表是空的，几百毫秒后一次性补齐。
+     */
+    private void loadServicesAsync() {
+        final Context appContext = getApplicationContext();
+        // 元数据也是 PackageManager IPC，和图标共用这条池子
+        iconExecutor.execute(() -> {
+            List<AccessibilityServiceInfo> loaded = new ArrayList<>();
+            AccessibilityManager am =
+                    (AccessibilityManager) appContext.getSystemService(Context.ACCESSIBILITY_SERVICE);
+            if (am != null) {
+                loaded.addAll(am.getInstalledAccessibilityServiceList());
+            }
+            for (AccessibilityServiceInfo info : loaded) {
+                ComponentName cn = ComponentName.unflattenFromString(info.getId());
+                if (cn != null) {
+                    getAppMeta(cn.getPackageName()); // 预热：应用名 + 是否系统应用
+                }
+                getServiceLabel(info); // 预热：服务自身 label
+            }
+            final List<AccessibilityServiceInfo> result = loaded;
+            mainHandler.post(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                allServices = result;
+                refreshServiceList();
+            });
+        });
     }
 
     /**
@@ -357,6 +393,29 @@ public class MainActivity extends AppCompatActivity {
     private boolean isServiceEnabledSnapshot(String serviceId) {
         ComponentName cn = ComponentName.unflattenFromString(serviceId);
         return cn != null && enabledServiceSnapshot.contains(cn);
+    }
+
+    /**
+     * 服务自身 label 的缓存：键＝服务 id。
+     * <p>
+     * ServiceInfo.loadLabel() 同样是 IPC（通常等于应用名，但少数服务有独立 label，
+     * 所以不能拿 appMetaCache 里的应用名顶替）。改前这行写在 onBindViewHolder 里，
+     * 每次绑定都取一次 —— 滚动重绑、每次刷新都算一遍。缓存后一个服务只取一次。
+     * 值可能是 null（该服务没有 label），所以用 containsKey 判断"查过没有"。
+     */
+    private final Map<String, CharSequence> serviceLabelCache =
+            Collections.synchronizedMap(new HashMap<String, CharSequence>());
+
+    private CharSequence getServiceLabel(AccessibilityServiceInfo info) {
+        String serviceId = info.getId();
+        if (serviceLabelCache.containsKey(serviceId)) {
+            return serviceLabelCache.get(serviceId);
+        }
+        CharSequence label = info.getResolveInfo() != null
+                ? info.getResolveInfo().loadLabel(getPackageManager())
+                : null;
+        serviceLabelCache.put(serviceId, label);
+        return label;
     }
 
     /**
@@ -818,7 +877,8 @@ public class MainActivity extends AppCompatActivity {
      * 形状是 150ms + 100ms 两段 pathData 变形，轨道变色按行程比例插值 —— 三条都在 250ms 收尾。
      * 这段时长长在库里，本侧没有合法办法改；能做的只有别在这 250ms 里插手，让它一帧不掉地跑完。
      */
-    private static final long SWITCH_MORPH_MS = 260L;
+    // 用户要求先试 250（= 库内时长本身，不留余量）。若掉帧时偶发"掰回"，就改回 260（250 + 10ms）。
+    private static final long SWITCH_MORPH_MS = 250L;
 
     /** 锁按钮动画进行中：期间挂起列表刷新，别让重绑掉帧把动画切成幻灯片。 */
     private boolean lockAnimInFlight;
@@ -830,6 +890,14 @@ public class MainActivity extends AppCompatActivity {
     private long lastToggleAt;
     /** 补刷已经排进消息队列了，避免重复 post。 */
     private boolean refreshScheduled;
+    /** 本次"攒着"从什么时候开始：总推迟时间不超过 MAX_REFRESH_DEFER_MS。 */
+    private long pendingSinceAt;
+    /** 推迟上限：外部改动风暴时也不能永远不刷。 */
+    private static final long MAX_REFRESH_DEFER_MS = 1000L;
+    /** 锁按钮转场的序号：兜底放行只对"自己那一次"生效。 */
+    private int lockAnimToken;
+    /** 转场兜底放行的时限：进场 400ms + 余量。 */
+    private static final long LOCK_ANIM_FALLBACK_MS = 500L;
 
     /**
      * 列表刷新的统一入口，顺带负责"别在动画里重绑"。
@@ -893,7 +961,64 @@ public class MainActivity extends AppCompatActivity {
         if (adapter == null) {
             return;
         }
+        // 这次提交会不会改掉某个**可见行**的开关 checked？会的话先等滑柄形变跑完再落地。
+        // 用户自己拨动时 lastToggleAt 已经记过；守护进程/系统改状态时没人记过，
+        // 于是重绑会直接打在形变中的滑柄上 —— 就是"关掉的一瞬间闪一下又弹回开启"。
+        if (visibleSwitchWillChange()) {
+            long now = SystemClock.uptimeMillis();
+            long morphLeft = SWITCH_MORPH_MS - (now - lastToggleAt);
+            if (pendingSinceAt == 0L) {
+                pendingSinceAt = now;
+                if (morphLeft <= 0) {
+                    // 外部改动：没人记过时刻，就记成"刚刚"，让这一次提交自己等满一个形变时长
+                    lastToggleAt = now;
+                    morphLeft = SWITCH_MORPH_MS;
+                }
+            }
+            long capLeft = MAX_REFRESH_DEFER_MS - (now - pendingSinceAt);
+            if (morphLeft > 0 && capLeft > 0) {
+                pendingAdapterRefresh = true;
+                if (!refreshScheduled) {
+                    refreshScheduled = true;
+                    mainHandler.postDelayed(this::flushAdapterRefresh, Math.min(morphLeft, capLeft));
+                }
+                return;
+            }
+        }
+        pendingSinceAt = 0L;
         adapter.submitList(new ArrayList<>(serviceList));
+    }
+
+    /**
+     * 这次提交会不会改变某个**可见行**的开关 checked 状态。
+     * <p>
+     * 用来把"重绑打断滑柄形变"覆盖到用户拨动之外的情况。屏幕外的行不算 ——
+     * 它们下次绑定时自然会拿到新值，不值得为它们推迟整表。
+     */
+    private boolean visibleSwitchWillChange() {
+        if (listView == null || serviceList == null) {
+            return false;
+        }
+        for (int i = 0; i < listView.getChildCount(); i++) {
+            View child = listView.getChildAt(i);
+            if (child == null) {
+                continue;
+            }
+            RecyclerView.ViewHolder holder = listView.getChildViewHolder(child);
+            if (!(holder instanceof ViewHolder)) {
+                continue;
+            }
+            ViewHolder vh = (ViewHolder) holder;
+            for (ServiceRow row : serviceList) {
+                if (row.info.getId().equals(vh.serviceId)) {
+                    if (vh.serviceSwitch.isChecked() != row.enabled) {
+                        return true;
+                    }
+                    break;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -922,36 +1047,68 @@ public class MainActivity extends AppCompatActivity {
      * <p>
      */
     private void animateLockButtonVisibility(MaterialButton lockButton, boolean show) {
+        int target = show ? View.VISIBLE : View.INVISIBLE;
         // getParent() 给的是 ViewParent，这里需要 ViewGroup 当转场的场景根。
         ViewParent parent = lockButton.getParent();
         if (!(parent instanceof ViewGroup)) {
             // 拿不到场景根（理论上不会发生）：退回直接设可见性，不动画。
-            lockButton.setVisibility(show ? View.VISIBLE : View.INVISIBLE);
+            lockButton.setVisibility(target);
             return;
         }
+        // 这里刻意**不**做"可见性已等于目标就跳过"的判断：
+        // 跳过会让上一次还在跑的转场继续跑到底、把可见性设成相反状态（实机现象：快速连点后
+        // 开关是开、锁按钮却不见了），而且跳过期间观感是"一闪一闪"而不是连贯。
+        // 照常起新转场即可 —— androidx 会先 cancel 旧转场，新转场从当前插值位置接着走，
+        // 观感与快速点击开关一致。
 
         MaterialFade fade = new MaterialFade();
         fade.addTarget(lockButton);
 
         // 转场期间不许重绑列表，否则这次布局会把还没起步的转场冲掉（就是当年那个 bug）。
+        // 同时在按钮上打 tag：onBindViewHolder 里那道守卫据此跳过 alpha/scale/可见性的重置，
+        // 免得重绑把还没播完的淡入淡出掐掉（转场收尾时在 releaseLockAnimGate() 里清掉）。
+        lockButton.setTag(R.id.lock_button, Boolean.TRUE);
         lockAnimInFlight = true;
+        final int token = ++lockAnimToken;
+        Log.d(TAG, "锁按钮动画：播放（" + (show ? "INVISIBLE→VISIBLE" : "VISIBLE→INVISIBLE")
+                + "，token=" + token + "，from alpha=" + lockButton.getAlpha() + "）");
         fade.addListener(new TransitionListenerAdapter() {
             @Override
             public void onTransitionEnd(@NonNull Transition transition) {
-                lockAnimInFlight = false;
-                flushAdapterRefresh();
+                releaseLockAnimGate(token, lockButton);
             }
 
             @Override
             public void onTransitionCancel(@NonNull Transition transition) {
-                lockAnimInFlight = false;
-                flushAdapterRefresh();
+                releaseLockAnimGate(token, lockButton);
             }
         });
 
+        // 兜底：万一 end/cancel 都没来（空转场、该行被回收等），门闸会永久关着，
+        // 那列表就再也不刷新了（"锁定状态点不动"就是这个）。最迟强制放行一次。
+        mainHandler.postDelayed(() -> releaseLockAnimGate(token, lockButton), LOCK_ANIM_FALLBACK_MS);
+
         // 先 beginDelayedTransition 再改可见性：转场自己记录前后两个状态。
         TransitionManager.beginDelayedTransition((ViewGroup) parent, fade);
-        lockButton.setVisibility(show ? View.VISIBLE : View.INVISIBLE);
+        lockButton.setVisibility(target);
+    }
+
+    /**
+     * 放行锁按钮转场的门闸。带 token：只有"当前那一次"转场能放行，
+     * 避免旧转场的回调或兜底把新转场的门闸提前打开。
+     */
+    private void releaseLockAnimGate(int token, MaterialButton lockButton) {
+        Log.d(TAG, "锁按钮动画：门闸放行请求 token=" + token + "（当前=" + lockAnimToken
+                + "，inFlight=" + lockAnimInFlight + "）");
+        if (token != lockAnimToken) {
+            return;
+        }
+        lockButton.setTag(R.id.lock_button, null);
+        if (!lockAnimInFlight) {
+            return;
+        }
+        lockAnimInFlight = false;
+        flushAdapterRefresh();
     }
 
     /**
@@ -1036,6 +1193,14 @@ public class MainActivity extends AppCompatActivity {
         }
 
         @Override
+        public void onViewRecycled(@NonNull ViewHolder holder) {
+            super.onViewRecycled(holder);
+            // 这一行要拿去绑别的服务了：把"转场中"标记清掉，
+            // 否则新的一行会因为守卫而永远不重置 alpha/scale/可见性。
+            holder.lockButton.setTag(R.id.lock_button, null);
+        }
+
+        @Override
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             ServiceRow row = getItem(position);
             // 官方 M3 Expressive Lists：ListItemLayout 按位置下发 state_first / state_middle / state_last / state_single，
@@ -1050,15 +1215,12 @@ public class MainActivity extends AppCompatActivity {
             String id = info.getId();
             holder.serviceId = id;
             ComponentName cn = ComponentName.unflattenFromString(id);
-            PackageManager pm = getPackageManager();
             AppMeta meta = cn == null ? null : getAppMeta(cn.getPackageName());
 
             // 图标懒加载：只摆占位图 + 挂后台任务，首帧不必等 PackageManager（见 loadServiceIcon）
             loadServiceIcon(holder.serviceIconIv, cn == null ? null : cn.getPackageName());
             String title = id;
-            CharSequence serviceLabel = info.getResolveInfo() != null
-                    ? info.getResolveInfo().loadLabel(pm)
-                    : null;
+            CharSequence serviceLabel = getServiceLabel(info);
             if (!TextUtils.isEmpty(serviceLabel)) {
                 title = serviceLabel.toString();
             } else if (meta != null && meta.found && !TextUtils.isEmpty(meta.label)) {
@@ -1098,6 +1260,8 @@ public class MainActivity extends AppCompatActivity {
                 holder.lockButton.setScaleX(1f);
                 holder.lockButton.setScaleY(1f);
                 holder.lockButton.setVisibility(isEnabled ? View.VISIBLE : View.INVISIBLE);
+            } else {
+                Log.d(TAG, "绑定跳过锁按钮重置（转场中）：" + id);
             }
             holder.lockButton.setIconResource(isDaemon ? R.drawable.ic_lock : R.drawable.ic_lock_open);
             holder.lockButton.setContentDescription(
@@ -1105,9 +1269,13 @@ public class MainActivity extends AppCompatActivity {
             );
 
             holder.serviceSwitch.setOnClickListener(v -> {
-                // 滑柄从这一刻起自己形变 250ms：记下时刻，这段窗口内不重绑列表
+                // 滑柄从这一刻起自己形变 SWITCH_MORPH_MS：记下时刻，这段窗口内不重绑列表
                 // （见 requestAdapterRefresh），否则形变尾巴会掉帧。
                 lastToggleAt = SystemClock.uptimeMillis();
+                // 同时把"推迟上限"重新起算：那个上限是给"外部改动风暴"兜底的，
+                // 不该用来切掉用户这一次的形变 —— 否则外部改动刚过、上限快耗尽时拨动，
+                // 提交会正好落在形变中间，看着就是"第一次变快了"。
+                pendingSinceAt = 0L;
                 if (!PermissionUtils.hasSecureSettingsPermission(MainActivity.this)) {
                     holder.serviceSwitch.setChecked(!holder.serviceSwitch.isChecked());
                     PermissionUtils.showPermissionDialog(MainActivity.this);

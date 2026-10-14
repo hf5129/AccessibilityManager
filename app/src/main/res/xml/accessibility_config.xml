@@ -1,5 +1,11 @@
+<!-- 本服务是纯保活的空实现（onAccessibilityEvent 收下来就丢），所以订阅越宽，只意味着
+     系统把越多跨进程唤醒投进本进程：原来 typeAllMask 时，光是在输入框打字，
+     TYPE_VIEW_TEXT_CHANGED 在 notificationTimeout=100 合并后也有约 10 次/秒。
+     收到最窄的 typeAnnouncement（只有 App 主动 announceForAccessibility 才触发）不影响保活：
+     进程优先级来自"服务被系统绑定且处于启用状态"，与订阅哪些事件无关。
+     注意该值不可为空/0；改完若想立即生效，把本服务关一次再开（或重启）即可。 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeAllMask"
+    android:accessibilityEventTypes="typeAnnouncement"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:canRetrieveWindowContent="false"
     android:description="@string/app_name"

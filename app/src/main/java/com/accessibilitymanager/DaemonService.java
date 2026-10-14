@@ -17,11 +17,14 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.util.Log;
 import android.widget.Toast;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -44,7 +47,23 @@ public class DaemonService extends Service {
     private Handler mHandler;
     private Handler mMainHandler;
     private SharedPreferences sp;
-    private boolean isSelfModification = false;
+
+    /**
+     * 上一次由本服务写进去的设置原始值。
+     * <p>
+     * 用它判断"这次设置变化是不是自己引起的"：读到的值和它一致 ⇒ 是我们自己写的，跳过；
+     * 不一致 ⇒ 是外部（系统/用户/别的应用）改的，必须立刻处理。
+     * <p>
+     * 改前这里是一个盲目的 500ms 时间窗 —— 系统若在我们写回后 0.5 秒内又把条目摘掉，
+     * 那次变更正好落在窗口里被误吞，只能等 60 秒心跳才恢复（实机表现：强停后要等约一分钟）。
+     */
+    private String lastSelfWritten;
+
+    /** 连续"刚写回又被摘掉"的次数：用于短间隔重试；一切正常时清零。 */
+    private int restoreRetry;
+
+    /** 短间隔重试上限：1s、2s、4s 各一次，之后交回常规触发（设置变化/亮屏/心跳）。 */
+    private static final int MAX_RESTORE_RETRY = 3;
 
     // 屏幕广播接收器
     private ScreenReceiver mScreenReceiver;
@@ -128,24 +147,40 @@ public class DaemonService extends Service {
         startForeground(NOTIFICATION_ID, builder.build());
     }
 
+    /** 该组件是否仍在守护名单里（逐个 unflatten 比较，避开 flatten 长短格式差异）。 */
+    private static boolean stillListed(Set<String> ids, ComponentName cn) {
+        for (String id : ids) {
+            if (cn.equals(ComponentName.unflattenFromString(id))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * 核心检测逻辑
      * 运行在后台线程，比对当前开启的服务与保活列表
      */
     private void doDaemonCheck() {
-        // 如果是本服务自己修改导致的 Settings 变化，忽略本次回调
-        if (isSelfModification) {
-            isSelfModification = false;
+        // 这次设置变化是自己引起的吗？比对"现在读到的原始值"和"我们上次写进去的值"。
+        // 一致才是我们写的（跳过）；不一致说明外部动了它，立刻往下处理。
+        String currentRaw = AccessibilityUtils.getRawEnabledServices(this);
+        if (lastSelfWritten != null && lastSelfWritten.equals(currentRaw)) {
             return;
         }
 
         Set<String> daemonIds = DaemonListStore.readIds(sp);
-        if (daemonIds.isEmpty()) return;
+        if (daemonIds.isEmpty()) {
+            Log.d(TAG, "检查：守护名单为空，跳过");
+            return;
+        }
 
         Set<ComponentName> currentEnabled = AccessibilityUtils.getEnabledServices(this);
+        // 诊断用：一次检查就够看出"名单里有没有它""系统认不认为它已启用"
+        Log.d(TAG, "检查：守护名单=" + daemonIds + " 当前已启用=" + currentEnabled);
         Set<ComponentName> targetEnabled = new HashSet<>(currentEnabled);
         boolean needUpdate = false;
-        StringBuilder restoredNames = new StringBuilder();
+        Map<ComponentName, String> restoredLabels = new HashMap<>();
 
         for (String id : daemonIds) {
             ComponentName cn = ComponentName.unflattenFromString(id);
@@ -157,7 +192,7 @@ public class DaemonService extends Service {
                     targetEnabled.add(cn);
                     needUpdate = true;
                     String label = getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(cn.getPackageName(), 0)).toString();
-                    restoredNames.append(label).append(' ');
+                    restoredLabels.put(cn, label);
                 } catch (PackageManager.NameNotFoundException ignored) {
                     Log.w(TAG, "未找到应用，跳过保活: " + id);
                 }
@@ -165,14 +200,51 @@ public class DaemonService extends Service {
         }
 
         if (needUpdate) {
+            // 写回之前重读一次守护名单：上面的名单是本次检查开头读的，中间用户可能已经点了锁定按钮
+            // 把某一项解锁（"关掉服务"与"解锁"是同一次点击的两步）—— 那就不能再把它拉回来，
+            // 否则用户看到的就是"关掉的一瞬间又弹回开启"。
+            Set<String> stillDaemon = DaemonListStore.readIds(sp);
+            Set<ComponentName> finalTarget = new HashSet<>(currentEnabled);
+            StringBuilder restoredNames = new StringBuilder();
+            // 遍历"真正要恢复的那些"（targetEnabled - currentEnabled），
+            // 不要遍历 restoredLabels —— 标签只是提示文案，取不到标签的项也必须照常恢复。
+            for (ComponentName cn : targetEnabled) {
+                if (currentEnabled.contains(cn)) {
+                    continue; // 本来就是开的，不用动
+                }
+                if (!stillListed(stillDaemon, cn)) {
+                    Log.i(TAG, "该项已被用户解锁，本次不恢复: " + cn.flattenToString());
+                    continue;
+                }
+                finalTarget.add(cn);
+                String label = restoredLabels.get(cn);
+                restoredNames.append(label != null ? label : cn.flattenToString()).append(' ');
+            }
+            if (restoredNames.length() == 0) {
+                Log.d(TAG, "本次要恢复的项都已被用户解锁，跳过写回");
+                return; // 不值得为此写一次设置
+            }
+
             Log.d(TAG, "检测到服务被关闭，正在恢复: " + restoredNames);
-            isSelfModification = true; // 标记由本APP修改
-            AccessibilityUtils.setEnabledServices(this, targetEnabled);
+            lastSelfWritten = AccessibilityUtils.setEnabledServices(this, finalTarget);
+            // 立刻读回一次：写入有没有被系统接受（强停状态下可能马上又被摘掉）
+            Log.i(TAG, "已写回启用列表，复查=" + AccessibilityUtils.getEnabledServices(this));
+
+            // 短间隔重试：系统摘掉后通常 1 秒内就能再写一次，比等 60 秒心跳快得多。
+            // 次数有限（1s/2s/4s），一切正常时会清零，不会长期空转。
+            if (restoreRetry < MAX_RESTORE_RETRY) {
+                restoreRetry++;
+                long delay = 1000L << (restoreRetry - 1);
+                mHandler.postDelayed(this::doDaemonCheck, delay);
+                Log.i(TAG, "已安排 " + delay + "ms 后复查（第 " + restoreRetry + " 次）");
+            }
 
             if (sp.getBoolean(AppConstants.KEY_SHOW_TOAST, true)) {
                 String msg = getString(R.string.daemon_restore_toast, restoredNames.toString().trim());
                 mMainHandler.post(() -> Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_SHORT).show());
             }
+        } else {
+            restoreRetry = 0; // 一切正常，重试计数归零
         }
     }
 
