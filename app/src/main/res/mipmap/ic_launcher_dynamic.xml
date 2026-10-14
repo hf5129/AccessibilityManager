@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    自适应图标包装层 —— 动态取色版的**低版本兜底**（放在不带 -v31 的 mipmap/ 里）。
+
+    为什么需要：.LauncherDynamic 现在是默认桌面入口，而它用的图标 @mipmap/ic_launcher_dynamic
+    在 mipmap-v31/ 里 —— 那套引用 API 31 才有的框架色 system_accent1_*，所以只在 API 31+ 存在。
+    低版本（minSdk 26）取不到，桌面图标会解析失败。这份兜底就是给它们用的。
+
+    同名资源按配置优选，31+ 永远走 mipmap-v31/ 那份：
+        mipmap/ic_launcher_dynamic.xml        ← 兜底：直接复用静态两个图层
+        mipmap-v31/ic_launcher_dynamic.xml    ← 真身：system_accent1_600 / _100
+    （application android:icon 仍指向 @mipmap/ic_launcher_static，与此处无关。）
+
+    低版本本来就没有动态取色（Monet 从 Android 12 才有），所以退化成静态配色不丢信息。
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background
+        android:drawable="@mipmap/ic_launcher_background_static" />
+    <foreground
+        android:drawable="@mipmap/ic_launcher_foreground_static" />
+    <monochrome
+        android:drawable="@mipmap/ic_launcher_foreground_static" />
+</adaptive-icon>

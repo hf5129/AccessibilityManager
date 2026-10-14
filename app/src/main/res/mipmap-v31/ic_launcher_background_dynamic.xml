@@ -3,7 +3,7 @@
     应用图标底色 —— 动态取色版（system_accent1_600 = 系统强调色 tone 40）。
 
     命名与位置：ic_launcher_background_dynamic，放在 mipmap-v31/（静态那套是
-    mipmap/ic_launcher_background）。整套动态图标（ic_launcher_dynamic + 两个图层）
+    mipmap/ic_launcher_background_static）。整套动态图标（ic_launcher_dynamic + 两个图层）
     都待在这个目录里 —— 因为它们引用的 system_accent1_* 是 API 31 才引入的框架色，
     放这儿等于声明"只在 API 31+ 存在"，低版本连这个资源都看不到。
 

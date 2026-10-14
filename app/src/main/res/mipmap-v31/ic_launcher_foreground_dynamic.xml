@@ -3,7 +3,7 @@
     应用图标前景（人形轮廓）—— 动态取色版（system_accent1_100 = 系统强调色 tone 90）。
 
     命名与位置：ic_launcher_foreground_dynamic，放在 mipmap-v31/（静态那套是
-    mipmap/ic_launcher_foreground）。两套名字不同、互不覆盖，各引各的。
+    mipmap/ic_launcher_foreground_static）。两套名字不同、互不覆盖，各引各的。
 
     随壁纸/主题色变化，原理见同目录的 ic_launcher_background_dynamic.xml。
     与背景 system_accent1_600 的对比度：兜底值 #D9E2FF / #475D92 = 5.01:1。
