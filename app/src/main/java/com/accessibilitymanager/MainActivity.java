@@ -1070,8 +1070,6 @@ public class MainActivity extends AppCompatActivity {
         lockButton.setTag(R.id.lock_button, Boolean.TRUE);
         lockAnimInFlight = true;
         final int token = ++lockAnimToken;
-        Log.d(TAG, "锁按钮动画：播放（" + (show ? "INVISIBLE→VISIBLE" : "VISIBLE→INVISIBLE")
-                + "，token=" + token + "，from alpha=" + lockButton.getAlpha() + "）");
         fade.addListener(new TransitionListenerAdapter() {
             @Override
             public void onTransitionEnd(@NonNull Transition transition) {
@@ -1098,8 +1096,6 @@ public class MainActivity extends AppCompatActivity {
      * 避免旧转场的回调或兜底把新转场的门闸提前打开。
      */
     private void releaseLockAnimGate(int token, MaterialButton lockButton) {
-        Log.d(TAG, "锁按钮动画：门闸放行请求 token=" + token + "（当前=" + lockAnimToken
-                + "，inFlight=" + lockAnimInFlight + "）");
         if (token != lockAnimToken) {
             return;
         }
@@ -1260,8 +1256,6 @@ public class MainActivity extends AppCompatActivity {
                 holder.lockButton.setScaleX(1f);
                 holder.lockButton.setScaleY(1f);
                 holder.lockButton.setVisibility(isEnabled ? View.VISIBLE : View.INVISIBLE);
-            } else {
-                Log.d(TAG, "绑定跳过锁按钮重置（转场中）：" + id);
             }
             holder.lockButton.setIconResource(isDaemon ? R.drawable.ic_lock : R.drawable.ic_lock_open);
             holder.lockButton.setContentDescription(

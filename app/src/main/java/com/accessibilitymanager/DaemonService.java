@@ -170,14 +170,9 @@ public class DaemonService extends Service {
         }
 
         Set<String> daemonIds = DaemonListStore.readIds(sp);
-        if (daemonIds.isEmpty()) {
-            Log.d(TAG, "检查：守护名单为空，跳过");
-            return;
-        }
+        if (daemonIds.isEmpty()) return;
 
         Set<ComponentName> currentEnabled = AccessibilityUtils.getEnabledServices(this);
-        // 诊断用：一次检查就够看出"名单里有没有它""系统认不认为它已启用"
-        Log.d(TAG, "检查：守护名单=" + daemonIds + " 当前已启用=" + currentEnabled);
         Set<ComponentName> targetEnabled = new HashSet<>(currentEnabled);
         boolean needUpdate = false;
         Map<ComponentName, String> restoredLabels = new HashMap<>();
@@ -227,8 +222,6 @@ public class DaemonService extends Service {
 
             Log.d(TAG, "检测到服务被关闭，正在恢复: " + restoredNames);
             lastSelfWritten = AccessibilityUtils.setEnabledServices(this, finalTarget);
-            // 立刻读回一次：写入有没有被系统接受（强停状态下可能马上又被摘掉）
-            Log.i(TAG, "已写回启用列表，复查=" + AccessibilityUtils.getEnabledServices(this));
 
             // 短间隔重试：系统摘掉后通常 1 秒内就能再写一次，比等 60 秒心跳快得多。
             // 次数有限（1s/2s/4s），一切正常时会清零，不会长期空转。
@@ -236,7 +229,6 @@ public class DaemonService extends Service {
                 restoreRetry++;
                 long delay = 1000L << (restoreRetry - 1);
                 mHandler.postDelayed(this::doDaemonCheck, delay);
-                Log.i(TAG, "已安排 " + delay + "ms 后复查（第 " + restoreRetry + " 次）");
             }
 
             if (sp.getBoolean(AppConstants.KEY_SHOW_TOAST, true)) {
