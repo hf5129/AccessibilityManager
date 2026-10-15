@@ -8,7 +8,7 @@ android {
     defaultConfig {
         applicationId "com.accessibilitymanager"
         minSdk 26
-        targetSdk 35
+        targetSdk 36
         versionCode 103
         versionName "10.3"
 
@@ -48,7 +48,9 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            // R8：方法数压到单 dex、去掉未用代码与资源（配合 res/raw/keep.xml 保住主题引用的弹窗布局）
+            minifyEnabled true
+            shrinkResources true
             signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
@@ -69,8 +71,9 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        // 1.8 → 17：JDK 21 上不再有过时的"源值 8"警告，语言特性也与 AGP 8 现代默认一致。
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     lint {
@@ -113,8 +116,8 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.8.0'
     implementation 'androidx.annotation:annotation:1.10.0'
     // 列表增删/移动动画用的是 RecyclerView 自带的 item 动画（material 1.14 的 POM 本就依赖
-    // androidx.recyclerview:recyclerview:1.2.1；用到的依赖还是显式声明，版本与它保持一致）
-    implementation 'androidx.recyclerview:recyclerview:1.2.1'
+    // androidx.recyclerview:recyclerview:1.4.0（原为 material 传递进来的 1.2.1，2026-10-15 升到当前稳定版）；用到的依赖还是显式声明）
+    implementation 'androidx.recyclerview:recyclerview:1.4.0'
 
     testImplementation 'junit:junit:4.13.2'
 }

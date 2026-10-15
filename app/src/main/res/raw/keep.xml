@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    shrinkResources 的保险单：
+    这几个资源是**同名覆写 material 库**的弹窗骨架/按钮样式，运行时由库的主题属性
+    （?attr/alertDialogStyle / ?attr/buttonBarStyle 等）间接引用 —— 资源收缩看不到这层引用，
+    lint 也曾把它们报成 unused。写在这里显式保住，避免某次构建把它们收掉、导致弹窗变样或崩。
+-->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@layout/m3expressive_alert_dialog,
+                @layout/m3_alert_dialog_actions,
+                @layout/m3expressive_alert_dialog_title,
+                @style/Widget.App.Button.FilledDialog,
+                @style/Widget.App.Button.FilledDialog.Flush,
+                @style/Widget.App.Button.TextDialog,
+                @style/Widget.App.SizeOverlay.DialogButton" />
