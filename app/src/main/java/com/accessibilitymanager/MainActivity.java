@@ -27,8 +27,6 @@ import android.text.TextUtils;
 import android.util.Log;
 import android.util.LruCache;
 import android.view.LayoutInflater;
-import android.view.Menu;
-import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewParent;
@@ -242,6 +240,10 @@ public class MainActivity extends AppCompatActivity {
         if (getSupportActionBar() != null) {
             getSupportActionBar().setTitle(R.string.app_name);
         }
+        // 「设置」入口：原来走溢出菜单（onCreateOptionsMenu + menu/arrange.xml），
+        // 菜单里只有这一条、点了也是弹设置弹窗 —— 那层壳只有坏处（还捎带库私有菜单项布局的
+        // RtlOverlay 16dp 依赖），所以改成布局里一个普通图标按钮。
+        toolbar.findViewById(R.id.action_settings).setOnClickListener(v -> showSettingsDialog());
     }
 
     /**
@@ -508,9 +510,9 @@ public class MainActivity extends AppCompatActivity {
                 iconView.animate()
                         .alpha(1f)
                         .setDuration(MotionUtils.resolveThemeDuration(iconView.getContext(),
-                                R.attr.motionDurationShort4, ICON_FADE_FALLBACK_MS))
+                                com.google.android.material.R.attr.motionDurationShort4, ICON_FADE_FALLBACK_MS))
                         .setInterpolator(MotionUtils.resolveThemeInterpolator(iconView.getContext(),
-                                R.attr.motionEasingEmphasizedDecelerateInterpolator, M3_EMPHASIZED_DECELERATE))
+                                com.google.android.material.R.attr.motionEasingEmphasizedDecelerateInterpolator, M3_EMPHASIZED_DECELERATE))
                         .start();
             });
         });
@@ -673,21 +675,6 @@ public class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && shizukuPermissionListener != null) {
             Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener);
         }
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.arrange, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        if (item.getItemId() == R.id.action_settings) {
-            showSettingsDialog();
-            return true;
-        }
-        return super.onOptionsItemSelected(item);
     }
 
     /**

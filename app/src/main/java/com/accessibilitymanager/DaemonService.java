@@ -166,11 +166,18 @@ public class DaemonService extends Service {
         // 一致才是我们写的（跳过）；不一致说明外部动了它，立刻往下处理。
         String currentRaw = AccessibilityUtils.getRawEnabledServices(this);
         if (lastSelfWritten != null && lastSelfWritten.equals(currentRaw)) {
+            // 上次写进去的那份还在 = 一切正常 ⇒ 重试计数归零。
+            // 原来只在末尾的 else 里归零，而这里（以及下面的两个提前 return）都会绕过它，
+            // 计数一旦涨到 3，后面的短间隔重试就再也不安排了。
+            restoreRetry = 0;
             return;
         }
 
         Set<String> daemonIds = DaemonListStore.readIds(sp);
-        if (daemonIds.isEmpty()) return;
+        if (daemonIds.isEmpty()) {
+            restoreRetry = 0;
+            return;
+        }
 
         Set<ComponentName> currentEnabled = AccessibilityUtils.getEnabledServices(this);
         Set<ComponentName> targetEnabled = new HashSet<>(currentEnabled);
@@ -217,6 +224,7 @@ public class DaemonService extends Service {
             }
             if (restoredNames.length() == 0) {
                 Log.d(TAG, "本次要恢复的项都已被用户解锁，跳过写回");
+                restoreRetry = 0; // 没有要恢复的项 ⇒ 计数归零
                 return; // 不值得为此写一次设置
             }
 

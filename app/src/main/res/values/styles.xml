@@ -1,23 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-        去掉 Toolbar 溢出菜单项勾选框右侧的 16dp 空白。
-        根因（已确认）：appcompat 1.6.1 溢出菜单条目布局
-            abc_popup_menu_item_layout.xml 中，内容区 LinearLayout(@+id/content)
-            style="@style/RtlOverlay.Widget.AppCompat.PopupMenuItem"，
-        该 style 在库的 values-v17（RTL 限定符）里定义
-            <item name="android:paddingEnd">16dp</item>，
-        勾选框插在 content 内，其右缘距菜单边缘多出 16dp。
-
-        要点：RtlOverlay.* 是 v17 限定符资源，覆盖必须放 values-v17 目录，
-        放在无限定符的 values/ 不生效。项目 minSdk 26，故 v17 限定符恒生效。
-        parent="android:Widget" 须与库原定义一致，才能整体替换库的同名 style。
-    -->
-    <style name="RtlOverlay.Widget.AppCompat.PopupMenuItem" parent="android:Widget">
-        <item name="android:paddingEnd">0dp</item>
-    </style>
-
-    <!--
         M3 MaterialAlertDialog 按钮 filled 样式（配合同名覆盖布局 m3_alert_dialog_actions.xml）。
         补充 dialog 按钮专属值：minWidth 64dp、singleLine、按钮间距 8dp
         （neutral 用 Flush 无左间距，positive/negative 各带 8dp marginStart）。

@@ -101,19 +101,6 @@ public class AccessibilityUtils {
     }
 
     /**
-     * 关闭指定服务 (从现有列表移除)
-     */
-    public static void disableService(Context context, String serviceId) {
-        ComponentName componentName = ComponentName.unflattenFromString(serviceId);
-        if (componentName == null) return;
-
-        Set<ComponentName> enabledServices = getEnabledServices(context);
-        if (enabledServices.remove(componentName)) {
-            setEnabledServices(context, enabledServices);
-        }
-    }
-
-    /**
      * 尝试静默开启本应用的保活服务
      * <p>
      * 仅在已有权限且服务未开启时执行。

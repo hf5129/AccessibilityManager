@@ -56,9 +56,4 @@ public final class DaemonListStore {
         return parseIds(sharedPreferences.getString(AppConstants.KEY_DAEMON_LIST, ""));
     }
 
-    public static String writeIds(SharedPreferences sharedPreferences, Set<String> ids) {
-        String raw = toRawString(ids);
-        sharedPreferences.edit().putString(AppConstants.KEY_DAEMON_LIST, raw).apply();
-        return raw;
-    }
 }
