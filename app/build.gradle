@@ -26,10 +26,12 @@ android {
 
     signingConfigs {
         release {
-            storeFile file(System.getenv("SIGNING_STORE_FILE") ?: "empty.jks")
-            storePassword System.getenv("SIGNING_STORE_PASSWORD")
-            keyAlias System.getenv("SIGNING_KEY_ALIAS")
-            keyPassword System.getenv("SIGNING_KEY_PASSWORD")
+            // 只从环境变量读签名材料；不再回落到并不存在的 empty.jks
+            //（缺材料时由文件末尾的 validateSigningRelease 检查给出明确提示）。
+            storeFile(System.getenv("SIGNING_STORE_FILE") ?: null)
+            storePassword(System.getenv("SIGNING_STORE_PASSWORD"))
+            keyAlias(System.getenv("SIGNING_KEY_ALIAS"))
+            keyPassword(System.getenv("SIGNING_KEY_PASSWORD"))
         }
     }
 
@@ -60,12 +62,30 @@ android {
         targetCompatibility JavaVersion.VERSION_1_8
     }
 
-    lintOptions {
-        checkReleaseBuilds false
-        abortOnError false
+    lint {
+        // 让 release 也跑 lint（lintVitalRelease），并且遇到 error 就让构建失败。
+        // 历史的既有问题记录在 lint-baseline.xml 里（只挡**新增**的 error）；
+        // 老问题逐个修掉后可删掉 baseline 再跑一次。
+        checkReleaseBuilds true
+        abortOnError true
+        baseline file("lint-baseline.xml")
     }
 
     namespace 'com.accessibilitymanager'
+}
+
+// 缺签名材料时给一句人话，而不是 AGP 那句
+//   SigningConfig "release" is missing required property "storeFile".
+// 注意：不能挂在 validateSigningRelease 上 —— 该任务只在签名配置**有** storeFile 时才被创建，
+// 缺材料时它根本不存在（本工程实测：任务列表里只有 validateSigningDebug / validateSigningReleaseTest）。
+// 所以在任务图就绪时检查，既不误伤 assembleDebug，又能尽早失败。
+gradle.taskGraph.whenReady { graph ->
+    if (graph.hasTask(':app:packageRelease') && android.signingConfigs.release.storeFile == null) {
+        throw new GradleException(
+            "缺少发布签名材料：请设置 SIGNING_STORE_FILE / SIGNING_STORE_PASSWORD / " +
+            "SIGNING_KEY_ALIAS / SIGNING_KEY_PASSWORD 四个环境变量；" +
+            "只想本机装机验证请改用 :app:assembleReleaseTest（debug 签名）。")
+    }
 }
 
 dependencies {

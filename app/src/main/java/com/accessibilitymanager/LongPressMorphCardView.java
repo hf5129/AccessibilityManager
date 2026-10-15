@@ -1,5 +1,6 @@
 package com.accessibilitymanager;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.os.SystemClock;
 import android.util.AttributeSet;
@@ -76,12 +77,28 @@ public class LongPressMorphCardView extends ListItemCardView {
         return ViewConfiguration.get(context).getTapTimeout();
     }
 
+    /**
+     * 只负责记录按下时刻供形变计时用，触摸派发交给 super。
+     *
+     * lint 的 ClickableViewAccessibility 要求重写 onTouchEvent 时调用 performClick()，
+     * 这里刻意不调：{@code super.onTouchEvent()} 内部已经会在手势判定为点击时调用
+     * performClick()（本类也已重写它），再调一次会把同一手势派发两遍。
+     */
+    @SuppressLint("ClickableViewAccessibility")
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
             downAt = SystemClock.uptimeMillis();
         }
         return super.onTouchEvent(event);
+    }
+
+    @Override
+    public boolean performClick() {
+        // 可访问性入口：lint 的 ClickableViewAccessibility 要求重写了 onTouchEvent 的 View
+        // 必须存在 performClick()（TalkBack 等辅助功能走的是这条路径）。
+        // 点击派发本身仍由 super.onTouchEvent() 完成，这里只补入口，不改变原有行为。
+        return super.performClick();
     }
 
     @Override

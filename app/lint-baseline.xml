@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 8.9.2" type="baseline" client="gradle" dependencies="false" name="AGP (8.9.2)" variant="all" version="8.9.2">
+
+    <issue
+        id="DuplicateIds"
+        message="Duplicate id `@+id/card_view`, already defined earlier in this layout"
+        errorLine1="                android:id=&quot;@+id/card_view&quot;"
+        errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="136"
+            column="17"/>
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="94"
+            column="17"
+            message="Duplicate id `@+id/card_view` originally defined here"/>
+    </issue>
+
+    <issue
+        id="DuplicateIds"
+        message="Duplicate id `@+id/setting_label`, already defined earlier in this layout"
+        errorLine1="                    android:id=&quot;@+id/setting_label&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="150"
+            column="21"/>
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="107"
+            column="21"
+            message="Duplicate id `@+id/setting_label` originally defined here"/>
+    </issue>
+
+    <issue
+        id="DuplicateIds"
+        message="Duplicate id `@+id/card_view`, already defined earlier in this layout"
+        errorLine1="                android:id=&quot;@+id/card_view&quot;"
+        errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="179"
+            column="17"/>
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="94"
+            column="17"
+            message="Duplicate id `@+id/card_view` originally defined here"/>
+    </issue>
+
+    <issue
+        id="DuplicateIds"
+        message="Duplicate id `@+id/setting_label`, already defined earlier in this layout"
+        errorLine1="                    android:id=&quot;@+id/setting_label&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="193"
+            column="21"/>
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="107"
+            column="21"
+            message="Duplicate id `@+id/setting_label` originally defined here"/>
+    </issue>
+
+    <issue
+        id="DuplicateIds"
+        message="Duplicate id `@+id/card_view`, already defined earlier in this layout"
+        errorLine1="                android:id=&quot;@+id/card_view&quot;"
+        errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="222"
+            column="17"/>
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="94"
+            column="17"
+            message="Duplicate id `@+id/card_view` originally defined here"/>
+    </issue>
+
+    <issue
+        id="DuplicateIds"
+        message="Duplicate id `@+id/setting_label`, already defined earlier in this layout"
+        errorLine1="                    android:id=&quot;@+id/setting_label&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="236"
+            column="21"/>
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="107"
+            column="21"
+            message="Duplicate id `@+id/setting_label` originally defined here"/>
+    </issue>
+
+    <issue
+        id="DuplicateIds"
+        message="Duplicate id `@+id/card_view`, already defined earlier in this layout"
+        errorLine1="                android:id=&quot;@+id/card_view&quot;"
+        errorLine2="                ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="265"
+            column="17"/>
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="94"
+            column="17"
+            message="Duplicate id `@+id/card_view` originally defined here"/>
+    </issue>
+
+    <issue
+        id="DuplicateIds"
+        message="Duplicate id `@+id/setting_label`, already defined earlier in this layout"
+        errorLine1="                    android:id=&quot;@+id/setting_label&quot;"
+        errorLine2="                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="278"
+            column="21"/>
+        <location
+            file="src/main/res/layout/dialog_settings.xml"
+            line="107"
+            column="21"
+            message="Duplicate id `@+id/setting_label` originally defined here"/>
+    </issue>
+
+    <issue
+        id="CutPasteId"
+        message="The id `R.id.setting_checkbox_dynamic_color` has already been looked up in this method; possible cut &amp; paste error?"
+        errorLine1="            MaterialCheckBox cbDynamicColor = content.findViewById(R.id.setting_checkbox_dynamic_color);"
+        errorLine2="                                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/accessibilitymanager/MainActivity.java"
+            line="731"
+            column="47"/>
+        <location
+            file="src/main/java/com/accessibilitymanager/MainActivity.java"
+            line="698"
+            column="17"
+            message="First usage here"/>
+    </issue>
+
+    <issue
+        id="CutPasteId"
+        message="The id `R.id.setting_checkbox_auto_boot` has already been looked up in this method; possible cut &amp; paste error?"
+        errorLine1="            MaterialCheckBox cbAutoBoot = content.findViewById(R.id.setting_checkbox_auto_boot);"
+        errorLine2="                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/accessibilitymanager/MainActivity.java"
+            line="732"
+            column="43"/>
+        <location
+            file="src/main/java/com/accessibilitymanager/MainActivity.java"
+            line="699"
+            column="17"
+            message="First usage here"/>
+    </issue>
+
+    <issue
+        id="CutPasteId"
+        message="The id `R.id.setting_checkbox_show_toast` has already been looked up in this method; possible cut &amp; paste error?"
+        errorLine1="            MaterialCheckBox cbShowToast = content.findViewById(R.id.setting_checkbox_show_toast);"
+        errorLine2="                                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/accessibilitymanager/MainActivity.java"
+            line="733"
+            column="44"/>
+        <location
+            file="src/main/java/com/accessibilitymanager/MainActivity.java"
+            line="700"
+            column="17"
+            message="First usage here"/>
+    </issue>
+
+    <issue
+        id="CutPasteId"
+        message="The id `R.id.setting_checkbox_hide_recents` has already been looked up in this method; possible cut &amp; paste error?"
+        errorLine1="            MaterialCheckBox cbHideRecents = content.findViewById(R.id.setting_checkbox_hide_recents);"
+        errorLine2="                                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/accessibilitymanager/MainActivity.java"
+            line="734"
+            column="46"/>
+        <location
+            file="src/main/java/com/accessibilitymanager/MainActivity.java"
+            line="701"
+            column="17"
+            message="First usage here"/>
+    </issue>
+
+    <issue
+        id="CutPasteId"
+        message="The id `R.id.setting_checkbox_show_system` has already been looked up in this method; possible cut &amp; paste error?"
+        errorLine1="            MaterialCheckBox cbShowSystem = content.findViewById(R.id.setting_checkbox_show_system);"
+        errorLine2="                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/accessibilitymanager/MainActivity.java"
+            line="735"
+            column="45"/>
+        <location
+            file="src/main/java/com/accessibilitymanager/MainActivity.java"
+            line="702"
+            column="17"
+            message="First usage here"/>
+    </issue>
+
+    <issue
+        id="BatteryLife"
+        message="Use of `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` violates the Play Store Content Policy regarding acceptable use cases, as described in https://developer.android.com/training/monitoring-device-state/doze-standby.html"
+        errorLine1="                Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);"
+        errorLine2="                                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/accessibilitymanager/MainActivity.java"
+            line="623"
+            column="53"/>
+    </issue>
+
+    <issue
+        id="PrivateResource"
+        message="The resource `@attr/toolbarNavigationButtonBackground` is marked as private in com.google.android.material:material:1.14.0"
+        errorLine1="                android:background=&quot;?attr/toolbarNavigationButtonBackground&quot;"
+        errorLine2="                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/activity_main.xml"
+            line="80"
+            column="37"/>
+    </issue>
+
+    <issue
+        id="PrivateResource"
+        message="Overriding `@layout/m3_alert_dialog_actions` which is marked as private in com.google.android.material:material:1.14.0. If deliberate, use tools:override=&quot;true&quot;, otherwise pick a different name.">
+        <location
+            file="src/main/res/layout/m3_alert_dialog_actions.xml"/>
+    </issue>
+
+    <issue
+        id="PrivateResource"
+        message="Overriding `@layout/m3expressive_alert_dialog` which is marked as private in com.google.android.material:material:1.14.0. If deliberate, use tools:override=&quot;true&quot;, otherwise pick a different name.">
+        <location
+            file="src/main/res/layout/m3expressive_alert_dialog.xml"/>
+    </issue>
+
+    <issue
+        id="PrivateResource"
+        message="The resource `@layout/m3expressive_alert_dialog_title` is marked as private in com.google.android.material:material:1.14.0"
+        errorLine1="  &lt;include layout=&quot;@layout/m3expressive_alert_dialog_title&quot;/>"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/m3expressive_alert_dialog.xml"
+            line="41"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="PrivateResource"
+        message="The resource `@layout/m3_alert_dialog_actions` is marked as private in com.google.android.material:material:1.14.0"
+        errorLine1="  &lt;include layout=&quot;@layout/m3_alert_dialog_actions&quot;"
+        errorLine2="                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/m3expressive_alert_dialog.xml"
+            line="113"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="QueryAllPackagesPermission"
+        message="A `&lt;queries>` declaration should generally be used instead of QUERY_ALL_PACKAGES; see https://g.co/dev/packagevisibility for details"
+        errorLine1="    &lt;uses-permission android:name=&quot;android.permission.QUERY_ALL_PACKAGES&quot; />"
+        errorLine2="                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="6"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="Overdraw"
+        message="Possible overdraw: Root element paints background `?attr/colorSurface` with a theme that also paints a background (inferred theme is `@style/AppTheme`)"
+        errorLine1="    android:background=&quot;?attr/colorSurface&quot;>"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/activity_main.xml"
+            line="33"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.layout.m3_alert_dialog_actions` appears to be unused"
+        errorLine1="&lt;ScrollView xmlns:android=&quot;http://schemas.android.com/apk/res/android&quot;"
+        errorLine2="^">
+        <location
+            file="src/main/res/layout/m3_alert_dialog_actions.xml"
+            line="18"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.layout.m3expressive_alert_dialog` appears to be unused"
+        errorLine1="&lt;androidx.appcompat.widget.AlertDialogLayout"
+        errorLine2="^">
+        <location
+            file="src/main/res/layout/m3expressive_alert_dialog.xml"
+            line="30"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.style.Widget_App_Button_FilledDialog_Flush` appears to be unused"
+        errorLine1="    &lt;style name=&quot;Widget.App.Button.FilledDialog.Flush&quot; parent=&quot;Widget.App.Button.FilledDialog&quot;>"
+        errorLine2="           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/styles.xml"
+            line="38"
+            column="12"/>
+    </issue>
+
+</issues>

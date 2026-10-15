@@ -252,21 +252,20 @@ public class MainActivity extends AppCompatActivity {
     private void initImmersiveStatusBar() {
         Window window = getWindow();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // 这一处要留着：Q(29) 高于 minSdk 26
             window.setNavigationBarContrastEnforced(false);
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            window.setStatusBarColor(Color.TRANSPARENT);
-            window.setNavigationBarColor(Color.TRANSPARENT);
-            // 确保布局延伸到状态栏和导航栏下方
-            int flags = View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
-                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
-            // 浅色模式下让状态栏图标变深色，避免白图标糊在浅色背景上
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !isDarkMode()) {
-                flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-            }
-            window.getDecorView().setSystemUiVisibility(flags);
+        window.setStatusBarColor(Color.TRANSPARENT);
+        window.setNavigationBarColor(Color.TRANSPARENT);
+        // 确保布局延伸到状态栏和导航栏下方
+        int flags = View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION |
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE;
+        // 浅色模式下让状态栏图标变深色，避免白图标糊在浅色背景上
+        if (!isDarkMode()) {
+            flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
         }
+        window.getDecorView().setSystemUiVisibility(flags);
     }
 
     private boolean isDarkMode() {
@@ -557,17 +556,15 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initShizukuListener() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            shizukuPermissionListener = (requestCode, grantResult) -> {
-                if (requestCode != PermissionUtils.REQUEST_CODE_SHIZUKU) {
-                    return;
-                }
-                if (grantResult == PackageManager.PERMISSION_GRANTED) {
-                    PermissionUtils.runShizukuCommand(this);
-                }
-            };
-            Shizuku.addRequestPermissionResultListener(shizukuPermissionListener);
-        }
+        shizukuPermissionListener = (requestCode, grantResult) -> {
+            if (requestCode != PermissionUtils.REQUEST_CODE_SHIZUKU) {
+                return;
+            }
+            if (grantResult == PackageManager.PERMISSION_GRANTED) {
+                PermissionUtils.runShizukuCommand(this);
+            }
+        };
+        Shizuku.addRequestPermissionResultListener(shizukuPermissionListener);
     }
 
     private void checkNotificationPermission() {
@@ -620,43 +617,35 @@ public class MainActivity extends AppCompatActivity {
     private void startDaemonService() {
         if (!PermissionUtils.hasSecureSettingsPermission(this)) return;
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-            if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
-                try {
-                    Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                    intent.setData(Uri.parse("package:" + getPackageName()));
-                    startActivity(intent);
-                } catch (Exception e) {
-                    Log.e(TAG, "Failed to request battery optimization ignore", e);
-                }
+        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+        if (pm != null && !pm.isIgnoringBatteryOptimizations(getPackageName())) {
+            try {
+                Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
+                intent.setData(Uri.parse("package:" + getPackageName()));
+                startActivity(intent);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to request battery optimization ignore", e);
             }
         }
 
         Intent intent = new Intent(this, DaemonService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent);
-        } else {
-            startService(intent);
-        }
+        startForegroundService(intent);
     }
 
     /**
      * 设置应用是否从最近任务列表中隐藏
      */
     private void applyHideFromRecents(boolean hide) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            try {
-                ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-                if (am != null) {
-                    List<ActivityManager.AppTask> tasks = am.getAppTasks();
-                    if (tasks != null && !tasks.isEmpty()) {
-                        tasks.get(0).setExcludeFromRecents(hide);
-                    }
+        try {
+            ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+            if (am != null) {
+                List<ActivityManager.AppTask> tasks = am.getAppTasks();
+                if (tasks != null && !tasks.isEmpty()) {
+                    tasks.get(0).setExcludeFromRecents(hide);
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to change recents visibility", e);
             }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to change recents visibility", e);
         }
     }
 
@@ -672,7 +661,7 @@ public class MainActivity extends AppCompatActivity {
         if (settingsObserver != null) {
             getContentResolver().unregisterContentObserver(settingsObserver);
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && shizukuPermissionListener != null) {
+        if (shizukuPermissionListener != null) {
             Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener);
         }
     }

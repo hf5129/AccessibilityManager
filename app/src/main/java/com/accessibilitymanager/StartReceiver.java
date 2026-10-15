@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.os.Build;
 import android.util.Log;
 
 /**
@@ -23,10 +22,6 @@ public class StartReceiver extends BroadcastReceiver {
         Log.d("StartReceiver", "Boot completed, starting DaemonService...");
 
         Intent serviceIntent = new Intent(context, DaemonService.class);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(serviceIntent);
-        } else {
-            context.startService(serviceIntent);
-        }
+        context.startForegroundService(serviceIntent);
     }
 }

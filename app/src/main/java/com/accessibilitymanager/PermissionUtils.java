@@ -5,7 +5,6 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -40,11 +39,7 @@ public class PermissionUtils {
      * @return true 表示已拥有权限
      */
     public static boolean hasSecureSettingsPermission(Context context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            return context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED;
-        }
-        // Android 6.0 以下通常在安装时授权
-        return true;
+        return context.checkSelfPermission(Manifest.permission.WRITE_SECURE_SETTINGS) == PackageManager.PERMISSION_GRANTED;
     }
 
     /**
@@ -138,7 +133,6 @@ public class PermissionUtils {
      * 请求 Shizuku 权限
      */
     public static void requestShizukuPermission(Context context, int requestCode) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
         try {
             if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
                 runShizukuCommand(context);

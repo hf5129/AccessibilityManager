@@ -20,7 +20,7 @@
         ViewGroup 的 clipChildren 默认值就是 true，删掉这行等于没删（行为完全相同）；
         真要允许子 View 越界绘制得显式写 false，那才算有意义的改动。
       · textSpacerNoTitle / textSpacerNoButtons 的高度保持库里的
-        @dimen/m3expressive_alert_dialog_top_padding / _bottom_padding，不写死具体值。
+        24dp / _bottom_padding，不写死具体值。
 
     同族文件现状：
       · m3_alert_dialog_actions.xml —— 保持原样，继续生效（本文件与库版 m3_alert_dialog.xml 都 include 它）。
@@ -33,7 +33,7 @@
     android:id="@+id/parentPanel"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:gravity="start|left|top"
+    android:gravity="start|top"
     android:orientation="vertical"
     android:clipChildren="true"
     android:filterTouchesWhenObscured="true">
@@ -68,7 +68,7 @@
         <android.widget.Space
             android:id="@+id/textSpacerNoTitle"
             android:layout_width="match_parent"
-            android:layout_height="@dimen/m3expressive_alert_dialog_top_padding"
+            android:layout_height="24dp"
             android:visibility="gone"/>
 
         <TextView
@@ -82,7 +82,7 @@
         <android.widget.Space
             android:id="@+id/textSpacerNoButtons"
             android:layout_width="match_parent"
-            android:layout_height="@dimen/m3expressive_alert_dialog_bottom_padding"
+            android:layout_height="24dp"
             android:visibility="gone"/>
       </LinearLayout>
     </androidx.core.widget.NestedScrollView>

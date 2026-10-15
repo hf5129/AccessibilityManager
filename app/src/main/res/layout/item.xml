@@ -76,6 +76,7 @@
                 android:layout_gravity="center_vertical"
                 android:layout_marginEnd="16dp"
                 android:contentDescription="@null"
+                android:importantForAccessibility="no"
                 android:duplicateParentState="true" />
 
             <LinearLayout

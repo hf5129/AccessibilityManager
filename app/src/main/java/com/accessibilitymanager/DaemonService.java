@@ -13,7 +13,6 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.ContentObserver;
-import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
@@ -126,11 +125,10 @@ public class DaemonService extends Service {
 
     private void startForegroundNotification() {
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(CHANNEL_ID, getString(R.string.daemon_notification_channel_name), NotificationManager.IMPORTANCE_LOW);
-            channel.setShowBadge(false);
-            if (nm != null) nm.createNotificationChannel(channel);
-        }
+        // minSdk 26 ⇒ 通知渠道 API 恒可用，原先的 SDK_INT >= O 判断已无意义（lint ObsoleteSdkInt）
+        NotificationChannel channel = new NotificationChannel(CHANNEL_ID, getString(R.string.daemon_notification_channel_name), NotificationManager.IMPORTANCE_LOW);
+        channel.setShowBadge(false);
+        if (nm != null) nm.createNotificationChannel(channel);
 
         Intent intent = new Intent(this, MainActivity.class);
         PendingIntent pi = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE);
@@ -141,9 +139,7 @@ public class DaemonService extends Service {
                 .setContentText(getString(R.string.daemon_notification_text))
                 .setContentIntent(pi);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            builder.setChannelId(CHANNEL_ID);
-        }
+        builder.setChannelId(CHANNEL_ID);
         startForeground(NOTIFICATION_ID, builder.build());
     }
 

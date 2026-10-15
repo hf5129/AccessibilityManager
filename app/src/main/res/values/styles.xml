@@ -21,18 +21,18 @@
           按钮圆角全丢直接显示成方块，并且完全不参与按压状态切换。
     -->
     <style name="Widget.App.SizeOverlay.DialogButton" parent="SizeOverlay.Material3Expressive.Button.Small">
-        <item name="containerPaddingStart">@dimen/m3_btn_text_btn_padding_left</item>
-        <item name="containerPaddingEnd">@dimen/m3_btn_text_btn_padding_right</item>
+        <item name="containerPaddingStart">12dp</item>
+        <item name="containerPaddingEnd">12dp</item>
     </style>
 
     <style name="Widget.App.Button.FilledDialog" parent="Widget.Material3Expressive.Button">
         <item name="materialSizeOverlay">@style/Widget.App.SizeOverlay.DialogButton</item>
-        <item name="android:minWidth">@dimen/m3_btn_dialog_btn_min_width</item>
+        <item name="android:minWidth">64dp</item>
         <item name="android:lines">1</item>
         <item name="android:ellipsize">end</item>
         <item name="android:singleLine">true</item>
-        <item name="android:layout_marginStart">@dimen/m3_btn_dialog_btn_spacing</item>
-        <item name="android:layout_marginLeft">@dimen/m3_btn_dialog_btn_spacing</item>
+        <item name="android:layout_marginStart">8dp</item>
+        <item name="android:layout_marginLeft">8dp</item>
     </style>
 
     <style name="Widget.App.Button.FilledDialog.Flush" parent="Widget.App.Button.FilledDialog">
@@ -57,12 +57,12 @@
     -->
     <style name="Widget.App.Button.TextDialog" parent="Widget.Material3Expressive.Button.TextButton">
         <item name="materialSizeOverlay">@style/Widget.App.SizeOverlay.DialogButton</item>
-        <item name="android:minWidth">@dimen/m3_btn_dialog_btn_min_width</item>
+        <item name="android:minWidth">64dp</item>
         <item name="android:lines">1</item>
         <item name="android:ellipsize">end</item>
         <item name="android:singleLine">true</item>
-        <item name="android:layout_marginStart">@dimen/m3_btn_dialog_btn_spacing</item>
-        <item name="android:layout_marginLeft">@dimen/m3_btn_dialog_btn_spacing</item>
+        <item name="android:layout_marginStart">8dp</item>
+        <item name="android:layout_marginLeft">8dp</item>
     </style>
 
     <!--
