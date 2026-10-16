@@ -1,43 +1,83 @@
 # Baseline profile for AccessibilityManager
 #
-# 目的：把启动路径上真正要跑的类，在安装/首次 dexopt 时就编译好（AOT），
-# 少走运行时解释/JIT 的弯路。只在**非 debuggable** 构建（release / releaseTest）生效；
-# debug 包不吃 profile，拿 debug 包对比是量不出差别的。
+# 目的：把启动路径上真正会跑的类/方法，在安装/首次 dexopt 时就编译好（AOT），
+# 少走运行时的解释/JIT 弯路。只在**非 debuggable** 构建（release / releaseTest）生效；
+# debug 包不带 profile，拿 debug 包对比量不出差别。
 #
-# 这里只写"我们自己的类 + 启动路径上用到的 material 组件"。
-# 依赖库自带的 baseline profile（appcompat / lifecycle / core / fragment 等 56 个 AAR 都带）
-# 由 AGP 在合并时自动并入，不需要在这里重复，否则会重复得又长又难维护。
-# 注意：material 1.14 的 AAR 本身不带 profile，所以下面把用到的 material 组件列了出来。
+# 什么该写、什么不该写（2026-10-15 用构建中间产物核实）：
+#   · androidx.appcompat 与 androidx.recyclerview **自带** baseline-prof.txt，AGP 在
+#     mergeArtProfile 时自动合并（实测合并产物里 appcompat 681 处、recyclerview 779 处）
+#     ⇒ 这里**不要**重复列它们的类/方法。
+#   · com.google.android.material 1.14 **不带** profile ⇒ 用到的 material 组件在此手写。
+#     （该 AAR 里的 com/google/android/material/internal/BaselineLayout.class 只是类名撞词。）
+#   · androidx.coordinatorlayout **不带** profile，而它是本布局最重的一块 ⇒ 在此补上。
+#
+# 粒度：只有 MainActivity（1300 行）用方法级 —— 类级规则会让 ART 把整类都编译，其中大半
+# （设置弹窗、动画器、守护设置…）启动时用不到。下列 MainActivity 规则的签名由 javap
+# 从编译产物逐个核对生成，手写容易错、错签名会被 AGP 丢弃。其余自有类都小，保持类级。
 
-# ---- 应用入口（Application 子类，进程起来第一个跑）----
-Lcom/accessibilitymanager/DynamicColors;
+# ---- 应用入口（进程起来第一个跑）----
+HSPLcom/accessibilitymanager/DynamicColors;->onCreate()V
 
-# ---- 主界面与列表 ----
-Lcom/accessibilitymanager/MainActivity;
-Lcom/accessibilitymanager/MainActivity$ServiceAdapter;
+# 注意：**方法级**规则必须带 H/S/P 标志前缀（H=hot、S=startup、P=post-startup），
+# 形如 HSPLcom/…;->method()V；漏了会被 AGP 报 "At least one of flags 'H','S','P' must be specified"。
+# 类级规则（Lcom/…;）不需要标志。
+
+# ---- 主界面：启动 + 首屏内容渲染（方法级）----
+HSPLcom/accessibilitymanager/MainActivity;-><init>()V
+HSPLcom/accessibilitymanager/MainActivity;->onCreate(Landroid/os/Bundle;)V
+HSPLcom/accessibilitymanager/MainActivity;->initToolbar()V
+HSPLcom/accessibilitymanager/MainActivity;->initImmersiveStatusBar()V
+HSPLcom/accessibilitymanager/MainActivity;->isDarkMode()Z
+HSPLcom/accessibilitymanager/MainActivity;->initListView()V
+HSPLcom/accessibilitymanager/MainActivity;->loadServicesAsync()V
+HSPLcom/accessibilitymanager/MainActivity;->refreshServiceList()V
+HSPLcom/accessibilitymanager/MainActivity;->refreshSnapshotThenList()V
+HSPLcom/accessibilitymanager/MainActivity;->loadServiceIcon(Landroid/widget/ImageView;Ljava/lang/String;)V
+HSPLcom/accessibilitymanager/MainActivity;->shouldShowService(Landroid/accessibilityservice/AccessibilityServiceInfo;Z)Z
+HSPLcom/accessibilitymanager/MainActivity;->isServiceEnabledSnapshot(Ljava/lang/String;)Z
+HSPLcom/accessibilitymanager/MainActivity;->sortServices()V
+HSPLcom/accessibilitymanager/MainActivity;->requestAdapterRefresh()V
+HSPLcom/accessibilitymanager/MainActivity;->flushAdapterRefresh()V
+HSPLcom/accessibilitymanager/MainActivity;->submitServiceList()V
+HSPLcom/accessibilitymanager/MainActivity;->applySegmentedEdgeMargins(Landroid/view/View;II)V
+HSPLcom/accessibilitymanager/MainActivity;->getAppMeta(Ljava/lang/String;)Lcom/accessibilitymanager/MainActivity$AppMeta;
+HSPLcom/accessibilitymanager/MainActivity;->getServiceLabel(Landroid/accessibilityservice/AccessibilityServiceInfo;)Ljava/lang/CharSequence;
+
+# ---- 主界面的小内部类（类级，都很小）----
 Lcom/accessibilitymanager/MainActivity$AppMeta;
+Lcom/accessibilitymanager/MainActivity$ServiceRow;
+Lcom/accessibilitymanager/MainActivity$ViewHolder;
+Lcom/accessibilitymanager/MainActivity$ServiceAdapter;
 
-# ---- 设置项与工具 ----
-Lcom/accessibilitymanager/AppConstants;
+# ---- 首帧之后第一趟后台任务用到的工具类 ----
 Lcom/accessibilitymanager/AccessibilityUtils;
 Lcom/accessibilitymanager/DaemonListStore;
 Lcom/accessibilitymanager/PermissionUtils;
+Lcom/accessibilitymanager/LongPressMorphCardView;
 
-# ---- 保活相关 ----
+# ---- 守护（startForegroundService 属启动流程；StartReceiver 只在开机广播、
+#      KeepAliveAccessibilityService 由系统在开启服务时实例化，都不在启动路径上，故不列）----
 Lcom/accessibilitymanager/DaemonService;
-Lcom/accessibilitymanager/KeepAliveAccessibilityService;
-Lcom/accessibilitymanager/StartReceiver;
 
-# ---- 启动路径上用到的 material 组件（material 1.14 自身不带 profile）----
+# ---- 启动路径上用到的 material 组件（material 1.14 不带 profile）----
 Lcom/google/android/material/color/DynamicColors;
 Lcom/google/android/material/color/DynamicColorsOptions;
 Lcom/google/android/material/theme/MaterialComponentsViewInflater;
 Lcom/google/android/material/appbar/AppBarLayout;
+Lcom/google/android/material/appbar/AppBarLayout$Behavior;
+Lcom/google/android/material/appbar/AppBarLayout$ScrollingViewBehavior;
+Lcom/google/android/material/appbar/HeaderBehavior;
 Lcom/google/android/material/appbar/MaterialToolbar;
+Lcom/google/android/material/internal/ViewOffsetHelper;
 Lcom/google/android/material/card/MaterialCardView;
 Lcom/google/android/material/listitem/ListItemLayout;
 Lcom/google/android/material/listitem/ListItemCardView;
 Lcom/google/android/material/materialswitch/MaterialSwitch;
 Lcom/google/android/material/button/MaterialButton;
-Lcom/google/android/material/checkbox/MaterialCheckBox;
 Lcom/google/android/material/dialog/MaterialAlertDialogBuilder;
+
+# ---- androidx.coordinatorlayout（库不带 profile，本布局最重的一块）----
+Landroidx/coordinatorlayout/widget/CoordinatorLayout;
+Landroidx/coordinatorlayout/widget/CoordinatorLayout$Behavior;
+Landroidx/coordinatorlayout/widget/CoordinatorLayout$LayoutParams;

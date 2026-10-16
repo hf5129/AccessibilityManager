@@ -131,7 +131,8 @@ public class MainActivity extends AppCompatActivity {
     private final LruCache<String, Drawable.ConstantState> iconCache = new LruCache<>(64);
 
     /**
-     * 图标加载线程池（守护线程，随进程退出）。
+     * 后台 IPC 线程池（守护线程，随进程退出）：图标懒加载、服务元数据预热、
+     * 「已开启服务」快照读取、桌面图标别名同步、隐藏最近任务，都走这条池子。
      * <p>
      * loadIcon() 是 PackageManager IPC，也是列表里唯一的重活：原先它跟着 getAppMeta()
      * 在主线程上按服务数逐个取，全压在首帧之前。现在只给"真正可见的行"取，且都在这里做。
@@ -210,12 +211,18 @@ public class MainActivity extends AppCompatActivity {
         daemonListStr = sp.getString(AppConstants.KEY_DAEMON_LIST, "");
 
         // 桌面图标跟随「跟随壁纸取色」：两套图标各挂一个 activity-alias，这里按设置同步启用状态
-        syncLauncherIcon();
+        // ② 桌面图标跟随「跟随壁纸取色」：两组图标各挂一个 activity-alias，这里按设置同步启用状态。
+        // 同步要 2~4 次 PackageManager IPC，但与首帧无关（图标晚一帧同步没人看得出来），
+        // 所以直接丢后台线程 —— 首帧不必等它。写入用的是 DONT_KILL_APP，不会重启本进程。
+        iconExecutor.execute(this::syncLauncherIcon);
 
         // 初始化“隐藏后台”状态
         boolean hideRecents = sp.getBoolean(AppConstants.KEY_HIDE_RECENTS, false);
         if (hideRecents) {
-            applyHideFromRecents(true);
+            // ③「最近任务里不出现」与首帧无关，而且等 task 建好之后再设置更确定
+            //（onCreate 早期 task 状态还在建立）。getAppTasks()/setExcludeFromRecents
+            // 都是 IPC，一并丢后台 —— 这个 API 允许非主线程调用。
+            iconExecutor.execute(() -> applyHideFromRecents(true));
         }
 
         // 拨开关、锁按钮的设置读改写统一走这条后台线程（IPC 不占动画帧）
@@ -342,12 +349,15 @@ public class MainActivity extends AppCompatActivity {
                 }
                 getServiceLabel(info); // 预热：服务自身 label
             }
+            // 「已开启的服务」快照也在这趟后台里读掉：首帧之后那一帧不用再等这次 IPC
             final List<AccessibilityServiceInfo> result = loaded;
+            final Set<ComponentName> snapshot = AccessibilityUtils.getEnabledServices(appContext);
             mainHandler.post(() -> {
                 if (isFinishing() || isDestroyed()) {
                     return;
                 }
                 allServices = result;
+                enabledServiceSnapshot = snapshot;
                 refreshServiceList();
             });
         });
@@ -359,9 +369,9 @@ public class MainActivity extends AppCompatActivity {
      * 但已开启无障碍权限且已锁定（保活名单）的系统应用始终保留。
      */
     private void refreshServiceList() {
-        // 滑柄自己的形变窗口内不干这活：这里要读一次 Settings（IPC）、过滤排序，再让列表
-        // 把可见项全部重绑，整段压在这 250ms 上滑柄就会掉帧。所以攒着，等窗口过去由
-        // flushAdapterRefresh() 再刷 —— 那时 lastToggleAt 已经出了窗口，这里会直接放行。
+        // 滑柄自己的形变窗口内不干这活：过滤排序 + 让列表把可见项全部重绑，整段压在这 250ms
+        // 上滑柄就会掉帧。所以攒着，等窗口过去由 flushAdapterRefresh() 再刷 ——
+        // 那时 lastToggleAt 已经出了窗口，这里会直接放行。
         long sinceToggle = SystemClock.uptimeMillis() - lastToggleAt;
         if (sinceToggle < SWITCH_MORPH_MS) {
             pendingFullRefresh = true;
@@ -372,8 +382,10 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         boolean showSystem = sp.getBoolean(AppConstants.KEY_SHOW_SYSTEM_APPS, false);
-        // 一个刷新周期只读一次 Settings，后面全查快照（原来是逐服务、逐行各读一次）。
-        enabledServiceSnapshot = AccessibilityUtils.getEnabledServices(this);
+        // 这里**不再读 Settings**：快照改由后台线程读（见 refreshSnapshotThenList /
+        // loadServicesAsync / runOffAnimationFrames），主线程只做过滤排序。
+        // 读一次 Settings 虽然只是一次 IPC，但要十几毫秒量级，原先正好压在"列表刚出内容"
+        // 那一帧上。需要最新快照的三条路径都会先更新快照再调本方法，所以状态不会过期。
         List<ServiceRow> filtered = new ArrayList<>();
         for (AccessibilityServiceInfo info : allServices) {
             if (shouldShowService(info, showSystem)) {
@@ -388,6 +400,26 @@ public class MainActivity extends AppCompatActivity {
         if (adapter != null) {
             requestAdapterRefresh();
         }
+    }
+
+    /**
+     * 后台读一次「已开启的无障碍服务」快照，再回主线程刷新列表。
+     * <p>
+     * 用在"系统设置被外部改动"这类必须看到最新状态的路径上：读在后台线程（和图标、元数据
+     * 共用同一条池子），主线程只做过滤排序。
+     */
+    private void refreshSnapshotThenList() {
+        final Context appContext = getApplicationContext();
+        iconExecutor.execute(() -> {
+            final Set<ComponentName> snapshot = AccessibilityUtils.getEnabledServices(appContext);
+            mainHandler.post(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                enabledServiceSnapshot = snapshot;
+                refreshServiceList();
+            });
+        });
     }
 
     /** 查快照，不读 Settings。 */
@@ -546,7 +578,8 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onChange(boolean selfChange) {
                 if (adapter != null) {
-                    refreshServiceList();
+                    // 外部（系统/别的应用）动了设置：先在后台读一次最新快照再刷
+                    refreshSnapshotThenList();
                 }
             }
         };
@@ -590,7 +623,7 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * 把"写系统设置"这段活（Settings.Secure 的读改写全是 IPC）丢到后台线程，
-     * 写完再回主线程按系统设置的真实状态刷新一次列表。
+     * 写完**在同一后台线程**回读一次快照，再回主线程刷新列表（读取不再落回主线程）。
      * <p>
      * 原来这些 IPC 都直接跑在拨动那一帧上，正好跟 MaterialSwitch 250ms 的滑柄动画、
      * 锁按钮的形变动画抢帧——动画丢帧看着就是卡。挪到后台后动画帧就干净了；
@@ -598,10 +631,15 @@ public class MainActivity extends AppCompatActivity {
      * （回主线程时若仍在滑柄形变窗口里，这次刷新会被 refreshServiceList() 拦下，等窗口过去再补。）
      */
     private void runOffAnimationFrames(@NonNull final Runnable settingsWork) {
+        final Context appContext = getApplicationContext();
         final Runnable work = () -> {
             settingsWork.run();
+            // 写完设置就地（仍在后台线程）读一次快照：这样界面上看到的就是写入后的真实状态，
+            // 而回主线程那一趟只做过滤排序，不再有 IPC 落在动画/首帧上。
+            final Set<ComponentName> snapshot = AccessibilityUtils.getEnabledServices(appContext);
             runOnUiThread(() -> {
                 if (!isFinishing() && !isDestroyed()) {
+                    enabledServiceSnapshot = snapshot;
                     refreshServiceList();
                 }
             });
