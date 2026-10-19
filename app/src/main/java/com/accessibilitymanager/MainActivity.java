@@ -40,7 +40,6 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.appcompat.widget.Toolbar;
 import androidx.transition.Transition;
 import androidx.transition.TransitionListenerAdapter;
 import androidx.recyclerview.widget.DefaultItemAnimator;
@@ -242,15 +241,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initToolbar() {
-        Toolbar toolbar = findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setTitle(R.string.app_name);
-        }
+        // 顶栏是普通的一行布局：左边是方形图标按钮、中间是纯文字标题（应用名），
+        // 右边是设置图标按钮；两者各自贴边 16dp，与列表卡片两侧对齐。
         // 「设置」入口：原来走溢出菜单（onCreateOptionsMenu + menu/arrange.xml），
         // 菜单里只有这一条、点了也是弹设置弹窗 —— 那层壳只有坏处（还捎带库私有菜单项布局的
         // RtlOverlay 16dp 依赖），所以改成布局里一个普通图标按钮。
-        toolbar.findViewById(R.id.action_settings).setOnClickListener(v -> showSettingsDialog());
+        findViewById(R.id.action_settings).setOnClickListener(v -> showSettingsDialog());
     }
 
     /**

@@ -39,49 +39,72 @@
         android:fitsSystemWindows="true"
         app:liftOnScroll="false">
 
-        <com.google.android.material.appbar.MaterialToolbar
+<!--
+            顶栏：完全按 aim_release_toolbarrow.apk 反解出的属性重建，唯一改动是左侧图标 overlay：
+            Round（IconButton.Small）→ Square（IconButton.Small.Square）。
+            属性逐条来自该包反编译结果：
+              容器 height=?attr/actionBarSize、paddingStart/End=16dp、background=?attr/colorSurface
+              左：IconButton.Filled + IconButton.Small.Square + backgroundTint=colorSurfaceContainer
+              中：MaterialTextView，**width=0dp**、marginStart/End=16dp、TitleLarge、ellipsize=end、maxLines=1
+              右：IconButton.Filled + IconButton.Small.Narrow + backgroundTint=colorSurfaceContainer
+            注：该包标题文字是 Java 里 setText 的（XML 无 text），这里直接写进 XML，效果等价。
+        -->
+        <androidx.constraintlayout.widget.ConstraintLayout
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            app:navigationContentDescription="@string/app_name"
-            app:navigationIcon="@drawable/ic_accessibility"
-            app:titleTextColor="?attr/colorOnSurfaceVariant">
+            android:background="?attr/colorSurface"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
 
-            <!--
-                「设置」入口：与左侧导航图标**同款的摆放**，只是位置在右边。
-                刻意不用 MaterialButton：它自带 inset / iconSize / iconTint 一整套机制，
-                会让图标既不正中也和左侧大小、颜色不一致。这里用 ImageButton，属性全部写在控件上：
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toolbar_icon_left"
+                style="@style/Widget.Material3Expressive.Button.IconButton.Filled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="false"
+                android:importantForAccessibility="no"
+                app:backgroundTint="?attr/colorSurfaceContainer"
+                app:icon="@drawable/ic_accessibility"
+                app:iconTint="?attr/colorOnSurfaceVariant"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Small.Square" />
 
-                    · 24dp 图标（drawable 自身的尺寸）+ 12dp 内边距 = 48dp 之内正好居中
-                      （48 - 24 = 24，两侧各 12dp），和左侧导航图标一样是 24dp 的字形；
-                    · 颜色不写任何 tint —— 图标自带 ?attr/colorOnSurfaceVariant，
-                      与左侧那个同一个色；
-                    · 48dp 的控件在 56dp（?attr/actionBarSize）的工具栏里 layout_gravity
-                      带 center_vertical 垂直居中，右侧 4dp 内缩和左侧对称；
-                    · 背景必须用 ?attr/toolbarNavigationButtonBackground（material 把它定义为
-                      @drawable/m3_default_control_background —— 带内缩的圆形涟漪）。
-                      之前这里写 ?attr/selectableItemBackgroundBorderless，那是**无边界**涟漪、
-                      半径按控件尺寸算，所以右侧水波纹比左侧大一大圈；
-                      MaterialButton 看着正常，也是因为它的背景同样是有边界/有形状的 ripple。
-                    · 尺寸按 56dp 的方形写死，且不设 marginEnd ——
-                      左侧导航按钮就贴在起始边，右侧贴结束边才真正对称。
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/toolbar_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/app_name"
+                android:textAppearance="?attr/textAppearanceTitleLarge"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toStartOf="@+id/action_settings"
+                app:layout_constraintStart_toEndOf="@+id/toolbar_icon_left"
+                app:layout_constraintTop_toTopOf="parent" />
 
-                改前这里是溢出菜单（onCreateOptionsMenu + menu/arrange.xml），菜单里只有一条
-                「设置」、点了弹设置弹窗 —— 等于给一个按钮套了层菜单壳；那层壳还捎带一条 AppCompat
-                依赖：abc_popup_menu_item_layout 的 @id/content 带
-                style="@style/RtlOverlay.Widget.AppCompat.PopupMenuItem"（库给它 paddingEnd 16dp），
-                为此得在 values-v26/ 写覆盖、还得靠版本限定符压过库的 values-v17。现在整条链都不要了。
-            -->
-            <ImageButton
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/action_settings"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
-                android:layout_gravity="end|center_vertical"
-                android:background="?attr/toolbarNavigationButtonBackground"
+                style="@style/Widget.Material3Expressive.Button.IconButton.Filled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:clickable="true"
                 android:contentDescription="@string/settings_title"
-                android:padding="12dp"
-                android:src="@drawable/ic_more_vert" />
-        </com.google.android.material.appbar.MaterialToolbar>
+                android:focusable="false"
+                app:backgroundTint="?attr/colorSurfaceContainer"
+                app:icon="@drawable/ic_more_vert"
+                app:iconTint="?attr/colorOnSurfaceVariant"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:materialSizeOverlay="@style/SizeOverlay.Material3Expressive.Button.IconButton.Small.Narrow" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
     </com.google.android.material.appbar.AppBarLayout>
 
