@@ -54,7 +54,6 @@ Lcom/accessibilitymanager/MainActivity$ServiceAdapter;
 Lcom/accessibilitymanager/AccessibilityUtils;
 Lcom/accessibilitymanager/DaemonListStore;
 Lcom/accessibilitymanager/PermissionUtils;
-Lcom/accessibilitymanager/LongPressMorphCardView;
 
 # ---- 守护（startForegroundService 属启动流程；StartReceiver 只在开机广播、
 #      KeepAliveAccessibilityService 由系统在开启服务时实例化，都不在启动路径上，故不列）----

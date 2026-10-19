@@ -46,9 +46,9 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
-    <com.accessibilitymanager.LongPressMorphCardView
+    <com.google.android.material.listitem.ListItemCardView
         android:id="@+id/card_view"
-        style="@style/Widget.App.ListItemCardView.Segmented"
+        style="@style/Widget.App.ListItemCardView.Static"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
@@ -143,5 +143,5 @@
                     android:padding="0dp" />
             </LinearLayout>
         </LinearLayout>
-    </com.accessibilitymanager.LongPressMorphCardView>
+    </com.google.android.material.listitem.ListItemCardView>
 </com.google.android.material.listitem.ListItemLayout>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    列表卡片的**静态**形状状态列表：只用"这一行在分段里的位置"决定圆角，
+    刻意不包含 state_pressed / state_focused / state_hovered —— 所以无论轻点、按住还是键盘焦点，
+    圆角都不变（也就不会触发 material 的圆角弹簧动画）。涟漪仍由卡片自身的 foreground 负责。
+
+    对照：material 自带的 res/xml/m3_list_item_shape_state_list.xml 里有 pressed/focused/hovered
+    三条（pressed → ?attr/listItemShapeAppearancePressed），那份"按下圆角变小"的反馈就是它给的。
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item android:state_single="true"
+        app:shapeAppearance="?attr/listItemShapeAppearanceSingle" />
+
+    <item android:state_first="true"
+        app:shapeAppearance="?attr/listItemShapeAppearanceFirst" />
+
+    <item android:state_last="true"
+        app:shapeAppearance="?attr/listItemShapeAppearanceLast" />
+
+    <item android:state_middle="true"
+        app:shapeAppearance="?attr/listItemShapeAppearanceMiddle" />
+
+    <item app:shapeAppearance="?attr/listItemShapeAppearanceMiddle" />
+</selector>
